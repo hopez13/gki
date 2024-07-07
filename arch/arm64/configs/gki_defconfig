@@ -505,7 +505,7 @@ CONFIG_CC_HAVE_STACKPROTECTOR_SYSREG=y
 #
 # Boot options
 #
-CONFIG_CMDLINE="stack_depot_disable=on kasan.stacktrace=off kvm-arm.mode=none cgroup_disable=pressure cgroup.memory=nokmem"
+CONFIG_CMDLINE="stack_depot_disable=on kasan=off kvm-arm.mode=none cgroup_disable=pressure cgroup.memory=nokmem"
 # CONFIG_CMDLINE_FROM_BOOTLOADER is not set
 CONFIG_CMDLINE_EXTEND=y
 # CONFIG_CMDLINE_FORCE is not set
@@ -2350,7 +2350,7 @@ CONFIG_INPUT_EVDEV=y
 #
 # Input Device Drivers
 #
-CONFIG_INPUT_KEYBOARD=y
+CONFIG_INPUT_KEYBOARD=n
 # CONFIG_KEYBOARD_ADC is not set
 # CONFIG_KEYBOARD_ADP5588 is not set
 # CONFIG_KEYBOARD_ADP5589 is not set
