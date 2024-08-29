@@ -3566,7 +3566,7 @@ int __weak module_frob_arch_sections(Elf_Ehdr *hdr,
 /* module_blacklist is a comma-separated list of module names */
 static char *module_blacklist;
 static char *custom_module_blacklist[] = {
-    "mtk_socinfo", "simtray", "zsmalloc", "zram", "task_turbo", "syscon_reboot_mode", "reboot_mode"
+    "mtk_socinfo", "simtray", "zsmalloc", "zram", "task_turbo", "syscon_reboot_mode", "reboot_mode", "sec_rng"
 };
 static bool blacklisted(const char *module_name)
 {
