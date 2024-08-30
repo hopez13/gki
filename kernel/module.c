@@ -3569,7 +3569,9 @@ static char *custom_module_blacklist[] = {
     "mtk_socinfo", "simtray", "zsmalloc", "zram", "task_turbo",
     "syscon_reboot_mode", "reboot_mode", "sec_rng", "mt6397",
     "mt63xx_debug", "uload_ind", "load_track", "pn553", "mtk_gpu_hal",
-    "regulator_vibrator", "mtk_kpd", "mtk_pmic_keys", "arm_dsu_pmu"
+    "regulator_vibrator", "mtk_kpd", "mtk_pmic_keys", "arm_dsu_pmu",
+    "nvmem_mtk_devinfo", "nvmem_mt635x_efuse"
+    
     
 };
 static bool blacklisted(const char *module_name)
