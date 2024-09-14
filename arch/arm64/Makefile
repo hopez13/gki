@@ -70,6 +70,7 @@ endif
 # off, this will be overridden if we are using branch protection.
 branch-prot-flags-y += $(call cc-option,-mbranch-protection=none)
 
+ifeq (0,1)
 ifeq ($(CONFIG_ARM64_PTR_AUTH),y)
 branch-prot-flags-$(CONFIG_CC_HAS_SIGN_RETURN_ADDRESS) := -msign-return-address=all
 # We enable additional protection for leaf functions as there is some
@@ -104,6 +105,7 @@ endif
 ifdef asm-arch
 KBUILD_CFLAGS	+= -Wa,-march=$(asm-arch) \
 		   -DARM64_ASM_ARCH='"$(asm-arch)"'
+endif
 endif
 
 ifeq ($(CONFIG_SHADOW_CALL_STACK), y)
