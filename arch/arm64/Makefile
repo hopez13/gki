@@ -108,6 +108,8 @@ KBUILD_CFLAGS	+= -Wa,-march=$(asm-arch) \
 endif
 endif
 
+KBUILD_CFLAGS	+= -DARM64_ASM_ARCH='"armv8.5-a"'
+
 ifeq ($(CONFIG_SHADOW_CALL_STACK), y)
 KBUILD_CFLAGS	+= -ffixed-x18
 endif
