@@ -2,6 +2,12 @@ name: Repository Maintenance
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - test
+  pull_request:
+    branches:
+      - test
 
 jobs:
   maintenance:
@@ -30,6 +36,6 @@ jobs:
       run: |
         git fsck --full
 
-    - name: Push Changes (if any)
+    - name: Push Changes
       run: |
         git push origin android12-5.10 || echo "No changes to push"
