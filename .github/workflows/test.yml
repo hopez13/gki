@@ -1,0 +1,35 @@
+name: Repository Maintenance
+
+on:
+  workflow_dispatch:
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@main
+      with:
+        ref: android12-5.10
+
+    - name: Set up Git
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'actions@github.com'
+
+    - name: Garbage Collection
+      run: |
+        git gc --aggressive --prune=now
+
+    - name: Repack Repository
+      run: |
+        git repack -a -d --depth=250 --window=250
+
+    - name: Verify Repository Integrity
+      run: |
+        git fsck --full
+
+    - name: Push Changes (if any)
+      run: |
+        git push origin android12-5.10 || echo "No changes to push"
