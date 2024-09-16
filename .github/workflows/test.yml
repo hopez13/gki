@@ -37,5 +37,6 @@ jobs:
         git fsck --full
 
     - name: Push Changes
-      run: |
-        git push origin android12-5.10 || echo "No changes to push"
+      run: git status
+      
+        
