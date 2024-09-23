@@ -15,7 +15,10 @@
 
 #include "clk-mtk.h"
 #include "mtk-pd-chk.h"
+
+#if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
 #include "mt-plat/aee.h"
+#endif
 
 #define TAG			"[pdchk] "
 #define MAX_PD_NUM		64

@@ -1729,7 +1729,7 @@ static void fusb303_attach(struct fusb303_chip *chip)
 {
 	struct device *cdev = &chip->client->dev;
 	int rc;
-	u8 status, status1, type;
+	u8 status,type;
 	/* get status and type */
 	rc = i2c_smbus_read_word_data(chip->client,
 			FUSB303_REG_STATUS);
@@ -1738,7 +1738,7 @@ static void fusb303_attach(struct fusb303_chip *chip)
 		return;
 	}
 	status = rc & 0xFF;
-	status1 = (rc >> 8) & 0xFF;
+	//status1 = (rc >> 8) & 0xFF;
 	rc = i2c_smbus_read_byte_data(chip->client,
 			FUSB303_REG_TYPE);
 	if (rc < 0) {

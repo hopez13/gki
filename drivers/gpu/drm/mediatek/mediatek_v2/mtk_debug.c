@@ -11,6 +11,7 @@
 #include <linux/debugfs.h>
 #include <mt-plat/mrdump.h>
 #endif
+#include "mtk_log.h"
 
 #if IS_ENABLED(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
