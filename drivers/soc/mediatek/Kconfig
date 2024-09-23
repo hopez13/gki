@@ -51,4 +51,47 @@ config MTK_MMSYS
 	  Say yes here to add support for the MediaTek Multimedia
 	  Subsystem (MMSYS).
 
+config MTK_MMDVFS
+	tristate "MediaTek MMDVFS Support"
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	depends on REGULATOR_MTK_DVFSRC
+	help
+	  Say yes here to add support for the MediaTek Multimedia DVFS (MMDVFS)
+	  driver. The MMDVFS is used to set clk for Mediatek multimedia hardwares
+	  , such as display, camera, mdp and video codec. Say no if your device
+	  does not need to do DVFS for Multimedia hardwares.
+
+config MTK_IPI
+	tristate "MediaTek IPI Support"
+	depends on RPMSG_MTK
+	help
+	  Say yes here to add support for the MediaTek IPI between tinysys.
+	  MTK IPI consists of APIs to do Linux to/from uP/DSP communication
+	  based on rpmsg. Synchronization among tasks is also handled by
+	  this layer. If uP/DSP drivers handle by themselves, they can use
+	  rpmsg directly.
+
+config MTK_MBOX
+	tristate "MediaTek Mbox Support"
+	help
+	  Say yes here to add support for the MediaTek Mbox driver.
+	  MTK MBOX is a physical H/W which consists of configurable 128
+	  or 256 bytes SRAM and 32 bit irq. The driver does read/write
+	  SRAM and IRQ handling.
+	  
+config MTK_SOCINFO
+	tristate "MediaTek SoCInfo Driver"
+	select SOC_BUS
+	help
+	  Say yes here to support the MediaTek SoCInfo driver, providing
+	  information about the SoC to user space.
+	  
+menu "Security"	  
+
+source "drivers/soc/mediatek/devapc/Kconfig"
+source "drivers/soc/mediatek/devmpu/Kconfig"
+
+endmenu
+
+	  
 endmenu

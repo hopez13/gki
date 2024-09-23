@@ -28,7 +28,7 @@ config MTK_DRE30_SUPPORT
 	  Decide whether to support ambient-light adaptive luma and
 	  display visual enhancement ver.3.
 	  This feature requires the cowork of AAL user-space algorithm process.
-
+  
 config MTK_DISP_LOGGER
 	bool "Default enable display logger function"
 	help
