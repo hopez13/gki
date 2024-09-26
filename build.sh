@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euxo pipefail
 
-which clang 
+clang -v && ld.lld -v
 
 sed -i 's/-dirty//g' scripts/setlocalversion
 
