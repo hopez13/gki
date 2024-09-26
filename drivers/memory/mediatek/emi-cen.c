@@ -193,7 +193,7 @@ static struct emi_cen *global_emi_cen;
 #if !defined(MODULE)
 static int __init emicen_init_mpu_ap_region(void)
 {
-	emimpu_ap_region_init();
+	return emimpu_ap_region_init();
 }
 late_initcall_sync(emicen_init_mpu_ap_region);
 #endif

@@ -34,7 +34,7 @@ s32 mtk_mmqos_get_hrt_ratio(enum hrt_type type);
 s32 mtk_mmqos_get_avail_hrt_bw(enum hrt_type type);
 s32 mtk_mmqos_register_bw_throttle_notifier(struct notifier_block *nb);
 s32 mtk_mmqos_unregister_bw_throttle_notifier(struct notifier_block *nb);
-s32 mtk_mmqos_hrt_scen(enum hrt_scen, bool is_start);
+s32 mtk_mmqos_hrt_scen(enum hrt_scen scen, bool is_start);
 s32 mtk_mmqos_system_qos_update(unsigned short qos_status);
 void mtk_mmqos_set_md_type(u32 md_type);
 #else
@@ -58,7 +58,7 @@ mtk_mmqos_unregister_bw_throttle_notifier(struct notifier_block *nb)
 { return 0; }
 
 static inline s32
-mtk_mmqos_hrt_scen(enum hrt_scen, bool is_start) { return 0; }
+mtk_mmqos_hrt_scen(enum hrt_scen scen, bool is_start) { return 0; }
 
 static inline s32
 mtk_mmqos_system_qos_update(unsigned short qos_status) { return 0; }

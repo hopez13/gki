@@ -2000,7 +2000,7 @@ irqreturn_t mtk_dsi_irq_status(int irq, void *dev_id)
 				mtk_drm_crtc_analysis(dsi->encoder.crtc);
 				mtk_drm_crtc_dump(dsi->encoder.crtc);
 				dsi_underrun_trigger = 0;
-				mtk_smi_dbg_hang_detect("dsi-underrun");
+				//mtk_smi_dbg_hang_detect("dsi-underrun");
 			}
 
 			mtk_dprec_logger_pr(DPREC_LOGGER_ERROR,

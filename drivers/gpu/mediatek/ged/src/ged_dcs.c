@@ -29,7 +29,7 @@ int g_max_core_num;
 int g_avail_mask_num;
 int g_virtual_opp_num;
 
-struct gpufreq_core_mask_info *g_core_mask_table;
+struct gpufreq_core_mask_info *g_core_mask_tbl;
 struct gpufreq_core_mask_info *g_avail_mask_table;
 
 /* Function Pointer hooked by DDK to scale cores */
@@ -45,22 +45,22 @@ static void _dcs_init_core_mask_table(void)
 	g_max_core_num = gpufreq_get_core_num();
 	g_cur_core_num = g_max_core_num;
 	mask_table = gpufreq_get_core_mask_table();
-	g_core_mask_table = kcalloc(g_max_core_num,
+	g_core_mask_tbl = kcalloc(g_max_core_num,
 		sizeof(struct gpufreq_core_mask_info), GFP_KERNEL);
 
-	if (!g_core_mask_table || !mask_table) {
+	if (!g_core_mask_tbl || !mask_table) {
 		GED_LOGE("Failed to query core mask from gpufreq");
 		g_dcs_enable = 0;
 		return;
 	}
 
 	for (i = 0; i < g_max_core_num; i++)
-		*(g_core_mask_table + i) = *(mask_table + i);
+		*(g_core_mask_tbl + i) = *(mask_table + i);
 
 #ifdef GED_KPI_DEBUG
 	for (i = 0; i < g_max_core_num; i++) {
 		GED_LOGI("[%02d*] MC0%d : 0x%llX",
-			i, g_core_mask_table[i].num, g_core_mask_table[i].mask);
+			i, g_core_mask_tbl[i].num, g_core_mask_tbl[i].mask);
 	}
 #endif /* GED_KPI_DEBUG */
 
@@ -109,7 +109,7 @@ void ged_dcs_exit(void)
 {
 	mutex_destroy(&g_DCS_lock);
 
-	kfree(g_core_mask_table);
+	kfree(g_core_mask_tbl);
 	kfree(g_avail_mask_table);
 }
 
@@ -119,7 +119,7 @@ struct gpufreq_core_mask_info *dcs_get_avail_mask_table(void)
 	u32 iter = 0;
 
 	if (!g_dcs_opp_setting)
-		return g_core_mask_table;
+		return g_core_mask_tbl;
 
 	if (g_avail_mask_table)
 		return g_avail_mask_table;
@@ -132,7 +132,7 @@ struct gpufreq_core_mask_info *dcs_get_avail_mask_table(void)
 
 	for (i = 0; i < g_max_core_num; i++) {
 		if (g_dcs_opp_setting & iter) {
-			*(g_avail_mask_table + j) = *(g_core_mask_table + i);
+			*(g_avail_mask_table + j) = *(g_core_mask_tbl + i);
 			j++;
 		}
 		iter >>= 1;
@@ -173,7 +173,7 @@ int dcs_set_core_mask(unsigned int core_mask, unsigned int core_num)
 	if (!g_dcs_enable || g_cur_core_num == core_num)
 		goto done_unlock;
 
-	if (!g_core_mask_table) {
+	if (!g_core_mask_tbl) {
 		ret = GED_ERROR_FAIL;
 		GED_LOGE("null core mask table");
 		goto done_unlock;
@@ -202,13 +202,13 @@ int dcs_restore_max_core_mask(void)
 	if (!g_dcs_enable || g_cur_core_num == g_max_core_num)
 		goto done_unlock;
 
-	if (g_core_mask_table == NULL) {
+	if (g_core_mask_tbl == NULL) {
 		ret = GED_ERROR_FAIL;
 		GED_LOGE("null core mask table");
 		goto done_unlock;
 	}
 
-	ged_dvfs_set_gpu_core_mask_fp(g_core_mask_table[0].mask);
+	ged_dvfs_set_gpu_core_mask_fp(g_core_mask_tbl[0].mask);
 	g_cur_core_num = g_max_core_num;
 
 done_unlock:
@@ -223,7 +223,7 @@ int is_dcs_enable(void)
 
 void dcs_enable(int enable)
 {
-	if (g_core_mask_table == NULL)
+	if (g_core_mask_tbl == NULL)
 		return;
 
 	mutex_lock(&g_DCS_lock);
@@ -231,7 +231,7 @@ void dcs_enable(int enable)
 	if (enable)
 		g_dcs_enable = enable;
 	else {
-		ged_dvfs_set_gpu_core_mask_fp(g_core_mask_table[0].mask);
+		ged_dvfs_set_gpu_core_mask_fp(g_core_mask_tbl[0].mask);
 		g_cur_core_num = g_max_core_num;
 		g_dcs_enable = 0;
 	}

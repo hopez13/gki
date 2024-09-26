@@ -162,7 +162,9 @@ struct cmdq_sec {
 	struct cmdq_sec_shared_mem	*shared_mem;
 	struct cmdq_sec_context		*context;
 	struct iwcCmdqCancelTask_t	cancel;
+#if IS_ENABLED(CONFIG_MMPROFILE)
 	struct cmdq_mmp_event		mmp;
+#endif
 	bool			unprepare_in_idle;
 };
 static atomic_t cmdq_path_res = ATOMIC_INIT(0);
@@ -176,7 +178,7 @@ static const s32 cmdq_max_task_in_secure_thread[
 static const s32 cmdq_tz_cmd_block_size[CMDQ_MAX_SECURE_THREAD_COUNT] = {
 	4 << 12, 4 << 12, 20 << 12, 4 << 12, 4 << 12};
 
-struct cmdq_sec_helper_fp helper_fp = {
+struct cmdq_sec_helper_fp helperfp = {
 	.sec_insert_backup_cookie_fp = cmdq_sec_insert_backup_cookie,
 	.sec_pkt_wait_complete_fp = cmdq_sec_pkt_wait_complete,
 	.sec_pkt_free_data_fp = cmdq_sec_pkt_free_data,
@@ -1790,7 +1792,7 @@ static int cmdq_sec_probe(struct platform_device *pdev)
 
 	g_cmdq[g_cmdq_cnt++] = cmdq;
 #ifdef CMDQ_SECURE_SUPPORT
-	cmdq_sec_helper_set_fp(&helper_fp);
+	cmdq_sec_helper_set_fp(&helperfp);
 #endif
 	return 0;
 }

@@ -852,7 +852,7 @@ static void mtk_iommu_tlb_flush_check(struct mtk_iommu_data *data, bool range)
 	if (range && (tlb_en & F_MMU_INV_RANGE)) {
 		pr_warn("%s, TLB flush Range timed out, need to extend time!!(%d, %d)\n", __func__,
 			data->plat_data->iommu_type, data->plat_data->iommu_id);
-		mtk_smi_dbg_hang_detect("iommu");
+		//mtk_smi_dbg_hang_detect("iommu");
 		pr_warn("%s, dump: 0x20:0x%x, 0x12c:0x%x\n",
 			__func__, readl_relaxed(data->base + REG_MMU_INVALIDATE),
 			readl_relaxed(data->base + REG_MMU_CPE_DONE));
@@ -860,7 +860,7 @@ static void mtk_iommu_tlb_flush_check(struct mtk_iommu_data *data, bool range)
 	} else if (!range && (tlb_en & F_ALL_INVLD)) {
 		pr_warn("%s, TLB flush All timed out, need to extend time!!(%d, %d)\n", __func__,
 			data->plat_data->iommu_type, data->plat_data->iommu_id);
-		mtk_smi_dbg_hang_detect("iommu");
+		//mtk_smi_dbg_hang_detect("iommu");
 		pr_warn("%s, dump: 0x20:0x%x, 0x12c:0x%x\n",
 			__func__, readl_relaxed(data->base + REG_MMU_INVALIDATE),
 			readl_relaxed(data->base + REG_MMU_CPE_DONE));
@@ -2850,7 +2850,7 @@ skip_smi:
 		if (r)
 			pr_info("%s notifier err, dev:%s\n", __func__, dev_name(dev));
 	}
-
+/*
 #if IS_ENABLED(CONFIG_MTK_SMI)
 	if (data->plat_data->iommu_type == MM_IOMMU) {
 		if (register_dbg_notifier != 1) {
@@ -2859,6 +2859,7 @@ skip_smi:
 		}
 	}
 #endif
+*/
 
 	mtk_iommu_isr_pause_timer_init(data);
 #if IS_ENABLED(CONFIG_MTK_IOMMU_MISC_SECURE)

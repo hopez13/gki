@@ -572,7 +572,7 @@ EXPORT_SYMBOL(cmdq_util_track);
 
 void cmdq_util_dump_smi(void)
 {
-#if IS_ENABLED(CONFIG_MTK_SMI)
+#if 0
 	int smi_hang;
 
 	smi_hang = mtk_smi_dbg_hang_detect("CMDQ");

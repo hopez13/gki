@@ -16,14 +16,12 @@ MTK_GPU_VERSION = $(subst ",,$(CONFIG_MTK_GPU_VERSION))
 
 $(info MTK_GPU_VERSION = $(MTK_GPU_VERSION))
 
-ifneq ($(CONFIG_MTK_PLATFORM),)
-export MTK_PLATFORM = $(subst ",,$(CONFIG_MTK_PLATFORM))
-else
-export MTK_PLATFORM = $(word 4,$(MTK_GPU_VERSION))
-endif
 
-ifeq ($(MTK_PLATFORM),mt6873)
-subdir-ccflags-y += -DCONFIG_GPU_MT6873
+export MTK_PLATFORM = mt6789
+
+
+ifeq ($(MTK_PLATFORM),mt6789)
+subdir-ccflags-y += -DCONFIG_GPU_MT6789
 else ifeq ($(MTK_PLATFORM),mt6893)
 subdir-ccflags-y += -DCONFIG_GPU_MT6893
 else ifeq ($(MTK_PLATFORM),mt6853)

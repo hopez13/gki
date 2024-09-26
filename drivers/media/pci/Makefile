@@ -3,20 +3,6 @@
 # Makefile for the kernel multimedia device drivers.
 #
 
-obj-y        +=	ttpci/		\
-		b2c2/		\
-		pluto2/		\
-		dm1105/		\
-		pt1/		\
-		pt3/		\
-		mantis/		\
-		ngene/		\
-		ddbridge/	\
-		saa7146/	\
-		smipcie/	\
-		netup_unidvb/	\
-		intel/
-
 obj-$(CONFIG_VIDEO_IVTV) += ivtv/
 obj-$(CONFIG_VIDEO_CX18) += cx18/
 obj-$(CONFIG_VIDEO_CX23885) += cx23885/

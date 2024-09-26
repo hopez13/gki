@@ -9,25 +9,5 @@ obj-$(CONFIG_PHY_LPC18XX_USB_OTG)	+= phy-lpc18xx-usb-otg.o
 obj-$(CONFIG_PHY_XGENE)			+= phy-xgene.o
 obj-$(CONFIG_PHY_PISTACHIO_USB)		+= phy-pistachio-usb.o
 obj-$(CONFIG_USB_LGM_PHY)		+= phy-lgm-usb.o
-obj-y					+= allwinner/	\
-					   amlogic/	\
-					   broadcom/	\
-					   cadence/	\
-					   freescale/	\
-					   hisilicon/	\
-					   intel/	\
-					   lantiq/	\
-					   marvell/	\
-					   mediatek/	\
-					   motorola/	\
-					   mscc/	\
-					   qualcomm/	\
-					   ralink/	\
-					   renesas/	\
-					   rockchip/	\
-					   samsung/	\
-					   socionext/	\
-					   st/		\
-					   tegra/	\
-					   ti/		\
-					   xilinx/
+obj-y	+= mediatek/
+					   

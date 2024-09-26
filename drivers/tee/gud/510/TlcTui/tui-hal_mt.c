@@ -31,6 +31,38 @@ struct tui_mempool {
 
 static int g_tbuff_alloc;
 
+int __weak ssmr_offline(phys_addr_t *pa, unsigned long *size, bool is_64bit,
+		unsigned int feat)
+{
+	return -1;
+}
+
+int __weak ssmr_online(unsigned int feat)
+{
+	return -1;
+}
+
+int __weak tpd_enter_tui(void)
+{
+	return 0;
+}
+
+int __weak tpd_exit_tui(void)
+{
+	return 0;
+}
+
+int __weak display_enter_tui(void)
+{
+	return 0;
+}
+
+int __weak display_exit_tui(void)
+{
+	return 0;
+}
+
+
 static __always_unused struct tui_mempool g_tui_mem_pool;
 
 /* basic implementation of a memory pool for TUI framebuffer.  This
@@ -363,3 +395,4 @@ void hal_tui_post_start(struct tlc_tui_response_t *rsp)
 {
 	pr_info("%s\n", __func__);
 }
+

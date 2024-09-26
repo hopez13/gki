@@ -77,6 +77,7 @@ static void remove_config(struct usb_composite_dev *cdev,
 	}
 }
 
+#if 0
 void usb_remove_config(struct usb_composite_dev *cdev,
 		      struct usb_configuration *config)
 {
@@ -94,6 +95,7 @@ void usb_remove_config(struct usb_composite_dev *cdev,
 /****************************************************
  *   End - copy function from composite.c
  ****************************************************/
+#endif
 
 static int quick_vcom_num;
 
