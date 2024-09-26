@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euxo pipefail
 
-clang -v && ld.lld -v
+clang -v && ld.lld -v && nproc
 
 sed -i 's/-dirty//g' scripts/setlocalversion
 
@@ -11,9 +11,9 @@ export KMI_GENERATION=9
 export BRANCH='android12-5.10' || exit 1
 
 scripts/setlocalversion --save-scmversion . $BRANCH $KMI_GENERATION || exit 1 
-make ARCH=arm64 V=0 LLVM=1 LLVM_IAS=1 O=out gki_defconfig CROSS_COMPILE=aarch64-linux-gnu-
+make -j4 ARCH=arm64 V=0 LLVM=1 LLVM_IAS=1 O=out gki_defconfig CROSS_COMPILE=aarch64-linux-gnu-
 cat out/.config
-make -j8 ARCH=arm64 V=0 LLVM=1 LLVM_IAS=1 O=out CROSS_COMPILE=aarch64-linux-gnu-
+make -j4 ARCH=arm64 V=0 LLVM=1 LLVM_IAS=1 O=out CROSS_COMPILE=aarch64-linux-gnu-
 
 AOSP_MIRROR=https://android.googlesource.com
 BRANCH=main-kernel-build-2024
