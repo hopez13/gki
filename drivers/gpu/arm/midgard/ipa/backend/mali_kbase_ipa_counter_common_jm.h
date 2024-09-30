@@ -1,7 +1,7 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2017-2018, 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2017-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -23,26 +23,24 @@
 #define _KBASE_IPA_COUNTER_COMMON_JM_H_
 
 #include "mali_kbase.h"
-#include "mali_kbase_hwcnt_virtualizer.h"
-#include "mali_kbase_hwcnt_types.h"
+#include "hwcnt/mali_kbase_hwcnt_virtualizer.h"
+#include "hwcnt/mali_kbase_hwcnt_types.h"
 
 /* Maximum number of IPA groups for an IPA model. */
-#define KBASE_IPA_MAX_GROUP_DEF_NUM  16
+#define KBASE_IPA_MAX_GROUP_DEF_NUM 16
 
 /* Number of bytes per hardware counter in a vinstr_buffer. */
-#define KBASE_IPA_NR_BYTES_PER_CNT    4
+#define KBASE_IPA_NR_BYTES_PER_CNT (sizeof(u64))
 
 /* Number of hardware counters per block in a vinstr_buffer. */
-#define KBASE_IPA_NR_CNT_PER_BLOCK   64
+#define KBASE_IPA_NR_CNT_PER_BLOCK 64
 
 /* Number of bytes per block in a vinstr_buffer. */
-#define KBASE_IPA_NR_BYTES_PER_BLOCK \
-	(KBASE_IPA_NR_CNT_PER_BLOCK * KBASE_IPA_NR_BYTES_PER_CNT)
+#define KBASE_IPA_NR_BYTES_PER_BLOCK (KBASE_IPA_NR_CNT_PER_BLOCK * KBASE_IPA_NR_BYTES_PER_CNT)
 
 struct kbase_ipa_model_vinstr_data;
 
-typedef u32
-kbase_ipa_get_active_cycles_callback(struct kbase_ipa_model_vinstr_data *);
+typedef u32 kbase_ipa_get_active_cycles_callback(struct kbase_ipa_model_vinstr_data *);
 
 /**
  * struct kbase_ipa_model_vinstr_data - IPA context per device
@@ -83,7 +81,7 @@ struct kbase_ipa_model_vinstr_data {
 };
 
 /**
- * struct ipa_group - represents a single IPA group
+ * struct kbase_ipa_group - represents a single IPA group
  * @name:               name of the IPA group
  * @default_value:      default value of coefficient for IPA group.
  *                      Coefficients are interpreted as fractions where the
@@ -94,7 +92,8 @@ struct kbase_ipa_model_vinstr_data {
 struct kbase_ipa_group {
 	const char *name;
 	s32 default_value;
-	s64 (*op)(struct kbase_ipa_model_vinstr_data *, s32, u32);
+	s64 (*op)(struct kbase_ipa_model_vinstr_data *model_data, s32 coeff,
+		  u32 counter_block_offset);
 	u32 counter_block_offset;
 };
 
@@ -111,9 +110,8 @@ struct kbase_ipa_group {
  *
  * Return: Sum of counter values. Range: -2^54 < ret < 2^54
  */
-s64 kbase_ipa_sum_all_shader_cores(
-	struct kbase_ipa_model_vinstr_data *model_data,
-	s32 coeff, u32 counter);
+s64 kbase_ipa_sum_all_shader_cores(struct kbase_ipa_model_vinstr_data *model_data, s32 coeff,
+				   u32 counter);
 
 /**
  * kbase_ipa_sum_all_memsys_blocks() - sum a counter over all mem system blocks
@@ -128,9 +126,8 @@ s64 kbase_ipa_sum_all_shader_cores(
  *
  * Return: Sum of counter values. Range: -2^51 < ret < 2^51
  */
-s64 kbase_ipa_sum_all_memsys_blocks(
-	struct kbase_ipa_model_vinstr_data *model_data,
-	s32 coeff, u32 counter);
+s64 kbase_ipa_sum_all_memsys_blocks(struct kbase_ipa_model_vinstr_data *model_data, s32 coeff,
+				    u32 counter);
 
 /**
  * kbase_ipa_single_counter() - sum a single counter
@@ -144,12 +141,11 @@ s64 kbase_ipa_sum_all_memsys_blocks(
  *
  * Return: Counter value. Range: -2^49 < ret < 2^49
  */
-s64 kbase_ipa_single_counter(
-	struct kbase_ipa_model_vinstr_data *model_data,
-	s32 coeff, u32 counter);
+s64 kbase_ipa_single_counter(struct kbase_ipa_model_vinstr_data *model_data, s32 coeff,
+			     u32 counter);
 
 /**
- * attach_vinstr() - attach a vinstr_buffer to an IPA model.
+ * kbase_ipa_attach_vinstr() - attach a vinstr_buffer to an IPA model.
  * @model_data:		pointer to model data
  *
  * Attach a vinstr_buffer to an IPA model. The vinstr_buffer
@@ -161,7 +157,7 @@ s64 kbase_ipa_single_counter(
 int kbase_ipa_attach_vinstr(struct kbase_ipa_model_vinstr_data *model_data);
 
 /**
- * detach_vinstr() - detach a vinstr_buffer from an IPA model.
+ * kbase_ipa_detach_vinstr() - detach a vinstr_buffer from an IPA model.
  * @model_data:		pointer to model data
  *
  * Detach a vinstr_buffer from an IPA model.

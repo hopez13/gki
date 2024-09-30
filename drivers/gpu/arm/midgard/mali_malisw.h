@@ -1,7 +1,7 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2014-2015, 2018, 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -19,14 +19,12 @@
  *
  */
 
-/**
+/*
  * Kernel-wide include for common macros and types.
  */
 
 #ifndef _MALISW_H_
 #define _MALISW_H_
-
-#include <linux/version.h>
 
 /**
  * MIN - Return the lesser of two values.
@@ -36,7 +34,7 @@
  * As a macro it may evaluate its arguments more than once.
  * Refer to MAX macro for more details
  */
-#define MIN(x, y)	((x) < (y) ? (x) : (y))
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
 
 /**
  * MAX - Return the greater of two values.
@@ -50,28 +48,29 @@
  * to retrieve the min and max of two values, consider using a conditional swap
  * instead.
  */
-#define MAX(x, y)	((x) < (y) ? (y) : (x))
+#define MAX(x, y) ((x) < (y) ? (y) : (x))
 
 /**
- * Function-like macro for suppressing unused variable warnings.
+ * CSTD_UNUSED - Function-like macro for suppressing unused variable warnings.
+ *
  * @x: unused variable
  *
  * Where possible such variables should be removed; this macro is present for
  * cases where we much support API backwards compatibility.
  */
-#define CSTD_UNUSED(x)	((void)(x))
+#define CSTD_UNUSED(x) ((void)(x))
 
 /**
- * Function-like macro for use where "no behavior" is desired.
+ * CSTD_NOP - Function-like macro for use where "no behavior" is desired.
  * @...: no-op
  *
  * This is useful when compile time macros turn a function-like macro in to a
  * no-op, but where having no statement is otherwise invalid.
  */
-#define CSTD_NOP(...)	((void)#__VA_ARGS__)
+#define CSTD_NOP(...) ((void)#__VA_ARGS__)
 
 /**
- * Function-like macro for stringizing a single level macro.
+ * CSTD_STR1 - Function-like macro for stringizing a single level macro.
  * @x: macro's value
  *
  * @code
@@ -80,10 +79,10 @@
  * > "MY_MACRO"
  * @endcode
  */
-#define CSTD_STR1(x)	#x
+#define CSTD_STR1(x) #x
 
 /**
- * Function-like macro for stringizing a macro's value.
+ * CSTD_STR2 - Function-like macro for stringizing a macro's value.
  * @x: macro's value
  *
  * This should not be used if the macro is defined in a way which may have no
@@ -94,6 +93,6 @@
  * > "32"
  * @endcode
  */
-#define CSTD_STR2(x)	CSTD_STR1(x)
+#define CSTD_STR2(x) CSTD_STR1(x)
 
 #endif /* _MALISW_H_ */

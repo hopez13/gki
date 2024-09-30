@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2012-2021 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -17,359 +17,289 @@
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
 #
-$(info *GPU [mtk-Kbuild] building r32p1 DDK ...)
 
-MTK_TOP = $(srctree)/drivers/misc/mediatek/
+KERNEL_SRC ?= /lib/modules/$(shell uname -r)/build
+KDIR ?= $(KERNEL_SRC)
+M ?= $(shell pwd)
 
-# build support for a ARM Mali Midgard GPU
-CONFIG_MALI_MIDGARD := $(CONFIG_MTK_GPU_SUPPORT)
-
-# use mtk platform
-CONFIG_MALI_PLATFORM_NAME := $(MTK_PLATFORM)
-
-CONFIG_MALI_DEBUG := y
-CONFIG_MALI_DEVFREQ := y
-CONFIG_MALI_MIDGARD_DVFS := y
-
-CONFIG_MALI_REAL_HW := y
-CONFIG_MALI_MTK_DEBUG := y
-CONFIG_MALI_MTK_DEBUG_DFD := y
-CONFIG_MALI_MTK_MEM_TRACK := y
-CONFIG_MALI_MTK_DEVFREQ := y
-CONFIG_MALI_MTK_DEVFREQ_THERMAL := y
-
-ifneq (, $(findstring $(MTK_PLATFORM), "mt6885" "mt6873" "mt6853" "mt6877"))
-CONFIG_MALI_MTK_GPU_BM_2 := y
-$(info *GPU defined GPU BM QoS 2.0)
+ifeq ($(KDIR),)
+    $(error Must specify KDIR to point to the kernel to target))
 endif
-
-ccflags-y += -I$(srctree)/include
-ccflags-y += -I$(srctree)/drivers/staging/android
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/gpu/ged/include
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/gpu/gpu_bm
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/v2/
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include
-ccflags-y += -I$(srctree)/drivers/gpu/mediatek/ged/include
-ccflags-y += -I$(srctree)/drivers/gpu/mediatek/gpu_bm
-ccflags-y += -I$(srctree)/drivers/gpu/mediatek/mt-plat
-ccflags-y += -I$(srctree)/drivers/gpu/mediatek/gpufreq
-ccflags-y += -I$(srctree)/drivers/gpu/mediatek/gpu_mali/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/backend/gpu
-ccflags-y += -I$(srctree)/drivers/gpu/mediatek/gpu_mali/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/include
-ccflags-y += -I$(srctree)/drivers/gpu/mediatek/gpu_mali/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/platform/$(MTK_PLATFORM)
-ccflags-y += -I$(srctree)/drivers/gpu/mediatek/gpu_mali/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/platform/mtk_platform_common
-ccflags-y += -I$(srctree)/drivers/gpu/mediatek/gpu_mali/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/debug
-ccflags-y += -I$(src)/debug
-ccflags-y += -I$(srctree)/drivers/staging/android/ion
-ccflags-y += -I$(srctree)/drivers/iommu
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
-ifeq ($(CONFIG_MTK_TINYSYS_SSPM_SUPPORT), y)
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/v2
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/qos/
-endif
-
-ccflags-$(CONFIG_DEBUG_FS) += -DCONFIG_DEBUG_FS
-ccflags-$(CONFIG_PROC_FS) += -DCONFIG_PROC_FS
-ccflags-$(CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT) += -DCONFIG_MALI_MTK_DVFS_POLICY
-ccflags-$(CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT) += -DCONFIG_MALI_MTK_DVFS_LOADING_MODE
-ccflags-y += -DCONFIG_GPU_$(shell echo $(MTK_PLATFORM) | tr a-z A-Z)
-ccflags-$(CONFIG_MALI_MIDGARD_DVFS) += -DCONFIG_MALI_MIDGARD_DVFS
-ccflags-$(CONFIG_MALI_DEVFREQ) += -DCONFIG_MALI_DEVFREQ
-ccflags-$(CONFIG_MALI_MTK_DEBUG) += -DCONFIG_MALI_MTK_DEBUG
-ccflags-$(CONFIG_MALI_MTK_DEBUG_DFD) += -DCONFIG_MALI_MTK_DEBUG_DFD
-ccflags-$(CONFIG_MALI_MTK_MEM_TRACK) += -DCONFIG_MALI_MTK_MEM_TRACK
-ccflags-$(CONFIG_MALI_MTK_DEVFREQ) += -DCONFIG_MALI_MTK_DEVFREQ
-ccflags-$(CONFIG_MALI_MTK_DEVFREQ_THERMAL) += -DCONFIG_MALI_MTK_DEVFREQ_THERMAL
-ccflags-$(CONFIG_MALI_MTK_GPU_BM_2) += -DCONFIG_MALI_MTK_GPU_BM_2
-ccflags-$(CONFIG_MALI_MTK_BRINGUP) += -DCONFIG_MALI_MTK_BRINGUP
-ccflags-$(CONFIG_MALI_MTK_NO_THERMAL) += -DCONFIG_MALI_MTK_NO_THERMAL
-
-# kernel config
-$(info *GPU [mtk-Kbuild] CONFIG_DEBUG_FS = $(CONFIG_DEBUG_FS))
-$(info *GPU [mtk-Kbuild] CONFIG_PROC_FS = $(CONFIG_PROC_FS))
-$(info *GPU [mtk-Kbuild] CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT = $(CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT))
-$(info *GPU [mtk-Kbuild] CONFIG_MTK_GPU_SUPPORT = $(CONFIG_MTK_GPU_SUPPORT))
-$(info *GPU [mtk-Kbuild] CONFIG_MTK_GPU_VERSION = $(CONFIG_MTK_GPU_VERSION))
-
-# platform config
-$(info *GPU [mtk-Kbuild] MTK_GPU_VERSION = $(MTK_GPU_VERSION))
-$(info *GPU [mtk-Kbuild] MTK_PLATFORM = $(MTK_PLATFORM))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_MIDGARD = $(CONFIG_MALI_MIDGARD))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_PLATFORM_NAME = $(CONFIG_MALI_PLATFORM_NAME))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_CSF_SUPPORT = $(CONFIG_MALI_CSF_SUPPORT))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_REAL_HW = $(CONFIG_MALI_REAL_HW))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_NO_MALI = $(CONFIG_MALI_NO_MALI))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_DEBUG = $(CONFIG_MALI_DEBUG))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_MIDGARD_DVFS = $(CONFIG_MALI_MIDGARD_DVFS))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_DEVFREQ = $(CONFIG_MALI_DEVFREQ))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_DEBUG = $(CONFIG_MALI_MTK_DEBUG))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_DEBUG_DFD = $(CONFIG_MALI_MTK_DEBUG_DFD))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_MEM_TRACK = $(CONFIG_MALI_MTK_MEM_TRACK))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_DEVFREQ = $(CONFIG_MALI_MTK_DEVFREQ))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_DEVFREQ_THERMAL = $(CONFIG_MALI_MTK_DEVFREQ_THERMAL))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_GPU_BM_2 = $(CONFIG_MALI_MTK_GPU_BM_2))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_BRINGUP = $(CONFIG_MALI_MTK_BRINGUP))
-$(info *GPU [mtk-Kbuild] CONFIG_MALI_MTK_NO_THERMAL = $(CONFIG_MALI_MTK_NO_THERMAL))
-
-# make $(src) as absolute path if it is not already, by prefixing $(srctree)
-# This is to prevent any build issue due to wrong path.
-src:=$(if $(patsubst /%,,$(src)),$(srctree)/$(src),$(src))
 
 #
-# Prevent misuse when Kernel configurations are not present by default
-# in out-of-tree builds
+# Default configuration values
 #
-ifneq ($(CONFIG_ANDROID),n)
-ifeq ($(CONFIG_GPU_TRACEPOINTS),n)
-    $(error CONFIG_GPU_TRACEPOINTS must be set in Kernel configuration)
-endif
-endif
+# Dependency resolution is done through statements as Kconfig
+# is not supported for out-of-tree builds.
+#
+CONFIGS :=
+ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
+    CONFIG_MALI_MIDGARD ?= m
+    ifeq ($(CONFIG_MALI_MIDGARD),m)
+        CONFIG_MALI_PLATFORM_NAME ?= "devicetree"
+        CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD ?= y
+        CONFIG_MALI_GATOR_SUPPORT ?= y
+        CONFIG_MALI_ARBITRATION ?= n
+        CONFIG_MALI_PARTITION_MANAGER ?= n
 
-ifeq ($(CONFIG_DMA_SHARED_BUFFER),n)
-    $(error CONFIG_DMA_SHARED_BUFFER must be set in Kernel configuration)
-endif
 
-ifeq ($(CONFIG_PM_DEVFREQ),n)
-    $(error CONFIG_PM_DEVFREQ must be set in Kernel configuration)
-endif
-
-ifeq ($(CONFIG_DEVFREQ_THERMAL),n)
-    $(error CONFIG_DEVFREQ_THERMAL must be set in Kernel configuration)
-endif
-
-ifeq ($(CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND),n)
-    $(error CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND must be set in Kernel configuration)
-endif
-
-ifeq ($(CONFIG_MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS), y)
-    ifneq ($(CONFIG_DEBUG_FS), y)
-        $(error CONFIG_MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS depends on CONFIG_DEBUG_FS to be set in Kernel configuration)
-    endif
-endif
-
-ifeq ($(CONFIG_MALI_FENCE_DEBUG), y)
-    ifneq ($(CONFIG_SYNC), y)
-        ifneq ($(CONFIG_SYNC_FILE), y)
-            $(error CONFIG_MALI_FENCE_DEBUG depends on CONFIG_SYNC || CONFIG_SYNC_FILE to be set in Kernel configuration)
+        ifneq ($(CONFIG_MALI_NO_MALI),y)
+            # Prevent misuse when CONFIG_MALI_NO_MALI!=y
+            CONFIG_MALI_REAL_HW ?= y
+        else
+            CONFIG_MALI_CORESIGHT = n
         endif
+
+        ifeq ($(CONFIG_MALI_MIDGARD_DVFS),y)
+            # Prevent misuse when CONFIG_MALI_MIDGARD_DVFS=y
+            CONFIG_MALI_DEVFREQ ?= n
+        else
+            CONFIG_MALI_DEVFREQ ?= y
+        endif
+
+        ifeq ($(CONFIG_MALI_DMA_BUF_MAP_ON_DEMAND), y)
+            # Prevent misuse when CONFIG_MALI_DMA_BUF_MAP_ON_DEMAND=y
+            CONFIG_MALI_DMA_BUF_LEGACY_COMPAT = n
+        endif
+
+        ifeq ($(CONFIG_MALI_CSF_SUPPORT), y)
+            CONFIG_MALI_CORESIGHT ?= n
+        endif
+
+        #
+        # Expert/Debug/Test released configurations
+        #
+        ifeq ($(CONFIG_MALI_EXPERT), y)
+            ifeq ($(CONFIG_MALI_NO_MALI), y)
+                CONFIG_MALI_REAL_HW = n
+                CONFIG_MALI_NO_MALI_DEFAULT_GPU ?= "tMIx"
+
+            else
+                # Prevent misuse when CONFIG_MALI_NO_MALI=n
+                CONFIG_MALI_REAL_HW = y
+            endif
+
+            ifneq ($(CONFIG_ANDROID), y)
+                CONFIG_PAGE_MIGRATION_SUPPORT ?= y
+            endif
+
+
+            ifeq ($(CONFIG_MALI_HW_ERRATA_1485982_NOT_AFFECTED), y)
+                # Prevent misuse when CONFIG_MALI_HW_ERRATA_1485982_NOT_AFFECTED=y
+                CONFIG_MALI_HW_ERRATA_1485982_USE_CLOCK_ALTERNATIVE = n
+            endif
+
+            ifeq ($(CONFIG_MALI_DEBUG), y)
+                CONFIG_MALI_MIDGARD_ENABLE_TRACE ?= y
+                CONFIG_MALI_SYSTEM_TRACE ?= y
+
+                ifeq ($(CONFIG_SYNC_FILE), y)
+                    CONFIG_MALI_FENCE_DEBUG ?= y
+                else
+                    CONFIG_MALI_FENCE_DEBUG = n
+                endif
+            else
+                # Prevent misuse when CONFIG_MALI_DEBUG=n
+                CONFIG_MALI_MIDGARD_ENABLE_TRACE = n
+                CONFIG_MALI_SYSTEM_TRACE = n
+                CONFIG_MALI_FENCE_DEBUG = n
+            endif
+        else
+            # Prevent misuse when CONFIG_MALI_EXPERT=n
+            CONFIG_MALI_CORESTACK = n
+            CONFIG_LARGE_PAGE_SUPPORT = y
+            CONFIG_MALI_PWRSOFT_765 = n
+            CONFIG_MALI_JOB_DUMP = n
+            CONFIG_MALI_NO_MALI = n
+            CONFIG_MALI_REAL_HW = y
+            CONFIG_MALI_HW_ERRATA_1485982_NOT_AFFECTED = n
+            CONFIG_MALI_HW_ERRATA_1485982_USE_CLOCK_ALTERNATIVE = n
+            CONFIG_MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS = n
+            CONFIG_MALI_DEBUG = n
+            CONFIG_MALI_MIDGARD_ENABLE_TRACE = n
+            CONFIG_MALI_SYSTEM_TRACE = n
+            CONFIG_MALI_FENCE_DEBUG = n
+        endif
+
+        ifeq ($(CONFIG_MALI_DEBUG), y)
+            CONFIG_MALI_KUTF ?= y
+            ifeq ($(CONFIG_MALI_KUTF), y)
+                CONFIG_MALI_KUTF_IRQ_TEST ?= y
+                CONFIG_MALI_KUTF_CLK_RATE_TRACE ?= y
+                CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST ?= y
+                ifeq ($(CONFIG_MALI_DEVFREQ), y)
+                    ifeq ($(CONFIG_MALI_NO_MALI), y)
+                        CONFIG_MALI_KUTF_IPA_UNIT_TEST ?= y
+                    endif
+                endif
+
+            else
+                # Prevent misuse when CONFIG_MALI_KUTF=n
+                CONFIG_MALI_KUTF_IRQ_TEST = n
+                CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
+                CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST = n
+            endif
+        else
+            # Prevent misuse when CONFIG_MALI_DEBUG=n
+            CONFIG_MALI_KUTF = n
+            CONFIG_MALI_KUTF_IRQ_TEST = n
+            CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
+            CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST = n
+        endif
+    else
+        # Prevent misuse when CONFIG_MALI_MIDGARD=n
+        CONFIG_MALI_ARBITRATION = n
+        CONFIG_MALI_KUTF = n
+        CONFIG_MALI_KUTF_IRQ_TEST = n
+        CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
+        CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST = n
     endif
+
+    # All Mali CONFIG should be listed here
+    CONFIGS += \
+        CONFIG_MALI_MIDGARD \
+        CONFIG_MALI_CSF_SUPPORT \
+        CONFIG_MALI_GATOR_SUPPORT \
+        CONFIG_MALI_ARBITRATION \
+        CONFIG_MALI_PARTITION_MANAGER \
+        CONFIG_MALI_REAL_HW \
+        CONFIG_MALI_DEVFREQ \
+        CONFIG_MALI_MIDGARD_DVFS \
+        CONFIG_MALI_DMA_BUF_MAP_ON_DEMAND \
+        CONFIG_MALI_DMA_BUF_LEGACY_COMPAT \
+        CONFIG_MALI_EXPERT \
+        CONFIG_MALI_CORESTACK \
+        CONFIG_PAGE_MIGRATION_SUPPORT \
+        CONFIG_LARGE_PAGE_SUPPORT \
+        CONFIG_MALI_PWRSOFT_765 \
+        CONFIG_MALI_JOB_DUMP \
+        CONFIG_MALI_NO_MALI \
+        CONFIG_MALI_IS_FPGA \
+        CONFIG_MALI_HW_ERRATA_1485982_NOT_AFFECTED \
+        CONFIG_MALI_HW_ERRATA_1485982_USE_CLOCK_ALTERNATIVE \
+        CONFIG_MALI_PRFCNT_SET_PRIMARY \
+        CONFIG_MALI_PRFCNT_SET_SECONDARY \
+        CONFIG_MALI_PRFCNT_SET_TERTIARY \
+        CONFIG_MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS \
+        CONFIG_MALI_DEBUG \
+        CONFIG_MALI_MIDGARD_ENABLE_TRACE \
+        CONFIG_MALI_SYSTEM_TRACE \
+        CONFIG_MALI_FENCE_DEBUG \
+        CONFIG_MALI_KUTF \
+        CONFIG_MALI_KUTF_IRQ_TEST \
+        CONFIG_MALI_KUTF_CLK_RATE_TRACE \
+        CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST \
+        CONFIG_MALI_XEN \
+        CONFIG_MALI_CORESIGHT \
+        CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD
+
+
+
+endif
+
+THIS_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+-include $(THIS_DIR)/../arbitration/Makefile
+
+# MAKE_ARGS to pass the custom CONFIGs on out-of-tree build
+#
+# Generate the list of CONFIGs and values.
+# $(value config) is the name of the CONFIG option.
+# $(value $(value config)) is its value (y, m).
+# When the CONFIG is not set to y or m, it defaults to n.
+MAKE_ARGS := $(foreach config,$(CONFIGS), \
+                    $(if $(filter y m,$(value $(value config))), \
+                        $(value config)=$(value $(value config)), \
+                        $(value config)=n))
+
+ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
+    MAKE_ARGS += CONFIG_MALI_PLATFORM_NAME=$(CONFIG_MALI_PLATFORM_NAME)
 endif
 
 #
-# Configurations
+# EXTRA_CFLAGS to define the custom CONFIGs on out-of-tree build
 #
+# Generate the list of CONFIGs defines with values from CONFIGS.
+# $(value config) is the name of the CONFIG option.
+# When set to y or m, the CONFIG gets defined to 1.
+EXTRA_CFLAGS := $(foreach config,$(CONFIGS), \
+                    $(if $(filter y m,$(value $(value config))), \
+                        -D$(value config)=1))
 
-# *** MTK ***
-$(info *GPU [mtk-Kbuild] src = $(src))
-$(info *GPU [mtk-Kbuild] srctree = $(srctree))
-include $(src)/Kbuild-mtk-custom-env
-include $(src)/platform/mtk_platform_common/Kbuild
-ccflags-y += -I$(src)/include
-subdir-ccflags-y += -I$(src)/include
-
-# Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r32p1-00bet2"'
-# Set up defaults if not defined by build system
-ifeq ($(CONFIG_MALI_DEBUG), y)
-    MALI_UNIT_TEST = 1
-    MALI_CUSTOMER_RELEASE ?= 0
-else
-    MALI_UNIT_TEST ?= 0
-    MALI_CUSTOMER_RELEASE ?= 1
+ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
+    EXTRA_CFLAGS += -DCONFIG_MALI_PLATFORM_NAME='\"$(CONFIG_MALI_PLATFORM_NAME)\"'
+    EXTRA_CFLAGS += -DCONFIG_MALI_NO_MALI_DEFAULT_GPU='\"$(CONFIG_MALI_NO_MALI_DEFAULT_GPU)\"'
 endif
-MALI_COVERAGE ?= 0
-
-CONFIG_MALI_PLATFORM_NAME ?= "devicetree"
-
-# Kconfig passes in the name with quotes for in-tree builds - remove them.
-MALI_PLATFORM_DIR := $(shell echo $(CONFIG_MALI_PLATFORM_NAME))
-include $(src)/platform/$(MALI_PLATFORM_DIR)/Kbuild
-
-ifeq ($(CONFIG_MALI_CSF_SUPPORT),y)
-    MALI_JIT_PRESSURE_LIMIT_BASE = 0
-    MALI_USE_CSF = 1
-else
-    MALI_JIT_PRESSURE_LIMIT_BASE ?= 1
-    MALI_USE_CSF ?= 0
-endif
-
-ifneq ($(CONFIG_MALI_KUTF), n)
-    MALI_KERNEL_TEST_API ?= 1
-else
-    MALI_KERNEL_TEST_API ?= 0
-endif
-
-# Experimental features (corresponding -D definition should be appended to
-# ccflags-y below, e.g. for MALI_EXPERIMENTAL_FEATURE,
-# -DMALI_EXPERIMENTAL_FEATURE=$(MALI_EXPERIMENTAL_FEATURE) should be appended)
-#
-# Experimental features must default to disabled, e.g.:
-# MALI_EXPERIMENTAL_FEATURE ?= 0
-MALI_INCREMENTAL_RENDERING ?= 0
 
 #
-# ccflags
+# KBUILD_EXTRA_SYMBOLS to prevent warnings about unknown functions
 #
-ccflags-y += \
-    -DMALI_CUSTOMER_RELEASE=$(MALI_CUSTOMER_RELEASE) \
-    -DMALI_USE_CSF=$(MALI_USE_CSF) \
-    -DMALI_KERNEL_TEST_API=$(MALI_KERNEL_TEST_API) \
-    -DMALI_UNIT_TEST=$(MALI_UNIT_TEST) \
-    -DMALI_COVERAGE=$(MALI_COVERAGE) \
-    -DMALI_RELEASE_NAME=$(MALI_RELEASE_NAME) \
-    -DMALI_JIT_PRESSURE_LIMIT_BASE=$(MALI_JIT_PRESSURE_LIMIT_BASE) \
-    -DMALI_INCREMENTAL_RENDERING=$(MALI_INCREMENTAL_RENDERING) \
-    -DMALI_KBASE_BUILD \
-#    -DMALI_PLATFORM_DIR=$(MALI_PLATFORM_DIR)
+BASE_SYMBOLS =
 
 
-ifeq ($(KBUILD_EXTMOD),)
-# in-tree
-    ccflags-y +=-DMALI_KBASE_PLATFORM_PATH=../../$(src)/platform/$(CONFIG_MALI_PLATFORM_NAME)
-else
-# out-of-tree
-    ccflags-y +=-DMALI_KBASE_PLATFORM_PATH=$(src)/platform/$(CONFIG_MALI_PLATFORM_NAME)
+EXTRA_SYMBOLS += \
+    $(BASE_SYMBOLS)
+
+CFLAGS_MODULE += -Wall -Werror
+
+# The following were added to align with W=1 in scripts/Makefile.extrawarn
+# from the Linux source tree (v5.18.14)
+CFLAGS_MODULE += -Wextra -Wunused -Wno-unused-parameter
+CFLAGS_MODULE += -Wmissing-declarations
+CFLAGS_MODULE += -Wmissing-format-attribute
+CFLAGS_MODULE += -Wmissing-prototypes
+CFLAGS_MODULE += -Wold-style-definition
+# The -Wmissing-include-dirs cannot be enabled as the path to some of the
+# included directories change depending on whether it is an in-tree or
+# out-of-tree build.
+CFLAGS_MODULE += $(call cc-option, -Wunused-but-set-variable)
+CFLAGS_MODULE += $(call cc-option, -Wunused-const-variable)
+CFLAGS_MODULE += $(call cc-option, -Wpacked-not-aligned)
+CFLAGS_MODULE += $(call cc-option, -Wstringop-truncation)
+# The following turn off the warnings enabled by -Wextra
+CFLAGS_MODULE += -Wno-sign-compare
+CFLAGS_MODULE += -Wno-shift-negative-value
+# This flag is needed to avoid build errors on older kernels
+CFLAGS_MODULE += $(call cc-option, -Wno-cast-function-type)
+
+KBUILD_CPPFLAGS += -DKBUILD_EXTRA_WARN1
+
+# The following were added to align with W=2 in scripts/Makefile.extrawarn
+# from the Linux source tree (v5.18.14)
+CFLAGS_MODULE += -Wdisabled-optimization
+# The -Wshadow flag cannot be enabled unless upstream kernels are
+# patched to fix redefinitions of certain built-in functions and
+# global variables.
+CFLAGS_MODULE += $(call cc-option, -Wlogical-op)
+CFLAGS_MODULE += -Wmissing-field-initializers
+# -Wtype-limits must be disabled due to build failures on kernel 5.x
+CFLAGS_MODULE += -Wno-type-limits
+CFLAGS_MODULE += $(call cc-option, -Wmaybe-uninitialized)
+CFLAGS_MODULE += $(call cc-option, -Wunused-macros)
+# The following ensures the stack frame does not get larger than a page
+CFLAGS_MODULE += -Wframe-larger-than=4096
+
+KBUILD_CPPFLAGS += -DKBUILD_EXTRA_WARN2
+
+# This warning is disabled to avoid build failures in some kernel versions
+CFLAGS_MODULE += -Wno-ignored-qualifiers
+
+ifeq ($(CONFIG_GCOV_KERNEL),y)
+    CFLAGS_MODULE += $(call cc-option, -ftest-coverage)
+    CFLAGS_MODULE += $(call cc-option, -fprofile-arcs)
+    EXTRA_CFLAGS += -DGCOV_PROFILE=1
 endif
 
-ccflags-y += \
-    -I$(srctree)/include/linux \
-    -I$(srctree)/drivers/staging/android \
-    -I$(src) \
-    -I$(src)/platform/$(MALI_PLATFORM_DIR) \
-    -I$(src)/../../../base \
-    -I$(src)/../../../../include
-
-subdir-ccflags-y += $(ccflags-y)
-
-#
-# Kernel Modules
-#
-#obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
-
-# MTK: Tell the Linux build system from which .o file to create the kernel module
-# LD1.0
-ifneq ($(CONFIG_MTK_GPU_VERSION),"")
-obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
-# LD2.0
-else ifneq ($(wildcard $(src)/platform/$(MTK_PLATFORM)),)
-obj-$(CONFIG_MALI_MIDGARD) += mali_kbase_$(MTK_PLATFORM).o
-mali_kbase_$(MTK_PLATFORM)-y := mali_kbase.o
+ifeq ($(CONFIG_MALI_KCOV),y)
+    CFLAGS_MODULE += $(call cc-option, -fsanitize-coverage=trace-cmp)
+    EXTRA_CFLAGS += -DKCOV=1
+    EXTRA_CFLAGS += -DKCOV_ENABLE_COMPARISONS=1
 endif
 
-ifeq ($(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM), y)
-    include $(srctree)/drivers/misc/mediatek/trusted_mem/Makefile.include
-    ccflags-y += -I$(srctree)/drivers/staging/android/ion
-endif
+all:
+	$(MAKE) -C $(KDIR) M=$(M) $(MAKE_ARGS) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" KBUILD_EXTRA_SYMBOLS="$(EXTRA_SYMBOLS)" modules
 
-obj-$(CONFIG_MALI_ARBITRATION) += arbitration/
-obj-$(CONFIG_MALI_KUTF)    += tests/
+modules_install:
+	$(MAKE) -C $(KDIR) M=$(M) $(MAKE_ARGS) modules_install
 
-mali_kbase-y += \
-    mali_kbase_cache_policy.o \
-    mali_kbase_ccswe.o \
-    mali_kbase_mem.o \
-    mali_kbase_mem_pool_group.o \
-    mali_kbase_native_mgm.o \
-    mali_kbase_ctx_sched.o \
-    mali_kbase_gpuprops.o \
-    mali_kbase_pm.o \
-    mali_kbase_config.o \
-    mali_kbase_vinstr.o \
-    mali_kbase_hwcnt.o \
-    mali_kbase_hwcnt_gpu.o \
-    mali_kbase_hwcnt_legacy.o \
-    mali_kbase_hwcnt_types.o \
-    mali_kbase_hwcnt_virtualizer.o \
-    mali_kbase_softjobs.o \
-    mali_kbase_hw.o \
-    mali_kbase_debug.o \
-    mali_kbase_gpu_memory_debugfs.o \
-    mali_kbase_mem_linux.o \
-    mali_kbase_core_linux.o \
-    mali_kbase_mem_profile_debugfs.o \
-    mali_kbase_disjoint_events.o \
-    mali_kbase_debug_mem_view.o \
-    mali_kbase_gator_api.o \
-    mali_kbase_smc.o \
-    mali_kbase_mem_pool.o \
-    mali_kbase_mem_pool_debugfs.o \
-    mali_kbase_debugfs_helper.o \
-    mali_kbase_strings.o \
-    mali_kbase_as_fault_debugfs.o \
-    mali_kbase_regs_history_debugfs.o \
-    mali_kbase_dvfs_debugfs.o \
-    mali_power_gpu_frequency_trace.o \
-    mali_kbase_trace_gpu_mem.o
-
-mali_kbase-$(CONFIG_MALI_CINSTR_GWT) += mali_kbase_gwt.o
-
-mali_kbase-$(CONFIG_SYNC) += \
-    mali_kbase_sync_android.o \
-    mali_kbase_sync_common.o
-
-mali_kbase-$(CONFIG_SYNC_FILE) += \
-    mali_kbase_fence_ops.o \
-    mali_kbase_sync_file.o \
-    mali_kbase_sync_common.o
-
-ifeq ($(CONFIG_MALI_CSF_SUPPORT),y)
-    mali_kbase-y += \
-        mali_kbase_hwcnt_backend_csf.o \
-        mali_kbase_hwcnt_backend_csf_if_fw.o
-else
-    mali_kbase-y += \
-        mali_kbase_jm.o \
-        mali_kbase_hwcnt_backend_jm.o \
-        mali_kbase_dummy_job_wa.o \
-        mali_kbase_debug_job_fault.o \
-        mali_kbase_event.o \
-        mali_kbase_jd.o \
-        mali_kbase_jd_debugfs.o \
-        mali_kbase_js.o \
-        mali_kbase_js_ctx_attr.o \
-        mali_kbase_kinstr_jm.o
-
-    mali_kbase-$(CONFIG_MALI_DMA_FENCE) += \
-        mali_kbase_fence_ops.o \
-        mali_kbase_dma_fence.o \
-        mali_kbase_fence.o
-
-    mali_kbase-$(CONFIG_SYNC_FILE) += \
-        mali_kbase_fence_ops.o \
-        mali_kbase_fence.o
-endif
-
-
-INCLUDE_SUBDIR = \
-    $(src)/context/Kbuild \
-    $(src)/debug/Kbuild \
-    $(src)/device/Kbuild \
-    $(src)/backend/gpu/Kbuild \
-    $(src)/mmu/Kbuild \
-    $(src)/tl/Kbuild \
-    $(src)/gpu/Kbuild \
-    $(src)/thirdparty/Kbuild \
-#    $(src)/platform/$(MALI_PLATFORM_DIR)/Kbuild
-
-ifeq ($(CONFIG_MALI_CSF_SUPPORT),y)
-    INCLUDE_SUBDIR += $(src)/csf/Kbuild
-endif
-
-ifeq ($(CONFIG_MALI_ARBITER_SUPPORT),y)
-    INCLUDE_SUBDIR += $(src)/arbiter/Kbuild
-endif
-
-ifeq ($(CONFIG_MALI_DEVFREQ),y)
-    ifeq ($(CONFIG_DEVFREQ_THERMAL),y)
-        INCLUDE_SUBDIR += $(src)/ipa/Kbuild
-    endif
-endif
-
-ifeq ($(KBUILD_EXTMOD),)
-# in-tree
-    -include $(INCLUDE_SUBDIR)
-else
-# out-of-tree
-    include $(INCLUDE_SUBDIR)
-endif
+clean:
+	$(MAKE) -C $(KDIR) M=$(M) $(MAKE_ARGS) clean

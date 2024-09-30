@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -24,7 +24,7 @@
  */
 
 #include <mali_kbase.h>
-#include <gpu/mali_kbase_gpu_regmap.h>
+#include <hw_access/mali_kbase_hw_access_regmap.h>
 #include <mali_kbase_pm.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 #include <mali_kbase_reset_gpu.h>
@@ -36,13 +36,13 @@
 #include <linux/of.h>
 
 static const struct kbase_pm_policy *const all_policy_list[] = {
-#if IS_ENABLED(CONFIG_MALI_MTK_BRINGUP)
+#if IS_ENABLED(CONFIG_MALI_NO_MALI)
 	&kbase_pm_always_on_policy_ops,
-	&kbase_pm_coarse_demand_policy_ops
-#else
 	&kbase_pm_coarse_demand_policy_ops,
-	&kbase_pm_always_on_policy_ops
-#endif
+#else /* CONFIG_MALI_NO_MALI */
+	&kbase_pm_coarse_demand_policy_ops,
+	&kbase_pm_always_on_policy_ops,
+#endif /* CONFIG_MALI_NO_MALI */
 };
 
 void kbase_pm_policy_init(struct kbase_device *kbdev)
@@ -51,9 +51,11 @@ void kbase_pm_policy_init(struct kbase_device *kbdev)
 	struct device_node *np = kbdev->dev->of_node;
 	const char *power_policy_name;
 	unsigned long flags;
-	int i;
+	unsigned int i;
 
-	if (of_property_read_string(np, "power_policy", &power_policy_name) == 0) {
+	/* Read "power-policy" property and fallback to "power_policy" if not found */
+	if ((of_property_read_string(np, "power-policy", &power_policy_name) == 0) ||
+	    (of_property_read_string(np, "power_policy", &power_policy_name) == 0)) {
 		for (i = 0; i < ARRAY_SIZE(all_policy_list); i++)
 			if (sysfs_streq(all_policy_list[i]->name, power_policy_name)) {
 				default_policy = all_policy_list[i];
@@ -75,7 +77,16 @@ void kbase_pm_policy_init(struct kbase_device *kbdev)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbdev->pm.backend.pm_current_policy = default_policy;
 	kbdev->pm.backend.csf_pm_sched_flags = default_policy->pm_sched_flags;
+
+#ifdef KBASE_PM_RUNTIME
+	if (kbase_pm_idle_groups_sched_suspendable(kbdev))
+		clear_bit(KBASE_GPU_IGNORE_IDLE_EVENT, &kbdev->pm.backend.gpu_sleep_allowed);
+	else
+		set_bit(KBASE_GPU_IGNORE_IDLE_EVENT, &kbdev->pm.backend.gpu_sleep_allowed);
+#endif /* KBASE_PM_RUNTIME */
+
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
 #else
 	CSTD_UNUSED(flags);
 	kbdev->pm.backend.pm_current_policy = default_policy;
@@ -103,13 +114,13 @@ void kbase_pm_update_active(struct kbase_device *kbdev)
 
 	active = backend->pm_current_policy->get_core_active(kbdev);
 	WARN((kbase_pm_is_active(kbdev) && !active),
-		"GPU is active but policy '%s' is indicating that it can be powered off",
-		kbdev->pm.backend.pm_current_policy->name);
+	     "GPU is active but policy '%s' is indicating that it can be powered off",
+	     kbdev->pm.backend.pm_current_policy->name);
 
 	if (active) {
 		/* Power on the GPU and any cores requested by the policy */
 		if (!pm->backend.invoke_poweroff_wait_wq_when_l2_off &&
-				pm->backend.poweroff_wait_in_progress) {
+		    pm->backend.poweroff_wait_in_progress) {
 			KBASE_DEBUG_ASSERT(kbdev->pm.backend.gpu_powered);
 			pm->backend.poweron_required = true;
 			spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -125,7 +136,7 @@ void kbase_pm_update_active(struct kbase_device *kbdev)
 			pm->backend.poweroff_wait_in_progress = false;
 			pm->backend.l2_desired = true;
 #if MALI_USE_CSF
-			pm->backend.mcu_desired = true;
+			pm->backend.mcu_desired = pm->backend.mcu_poweron_required;
 #endif
 
 			spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -180,15 +191,14 @@ void kbase_pm_update_dynamic_cores_onoff(struct kbase_device *kbdev)
 
 	shaders_desired = kbdev->pm.backend.pm_current_policy->shaders_needed(kbdev);
 
-	if (shaders_desired && kbase_pm_is_l2_desired(kbdev)) {
+	if (shaders_desired && kbase_pm_is_l2_desired(kbdev))
 		kbase_pm_update_state(kbdev);
-	}
 #endif
 }
 
 void kbase_pm_update_cores_state_nolock(struct kbase_device *kbdev)
 {
-	bool shaders_desired;
+	bool shaders_desired = false;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
@@ -197,6 +207,7 @@ void kbase_pm_update_cores_state_nolock(struct kbase_device *kbdev)
 	if (kbdev->pm.backend.poweroff_wait_in_progress)
 		return;
 
+#if !MALI_USE_CSF
 	if (kbdev->pm.backend.protected_transition_override)
 		/* We are trying to change in/out of protected mode - force all
 		 * cores off so that the L2 powers down
@@ -204,17 +215,11 @@ void kbase_pm_update_cores_state_nolock(struct kbase_device *kbdev)
 		shaders_desired = false;
 	else
 		shaders_desired = kbdev->pm.backend.pm_current_policy->shaders_needed(kbdev);
-
-#if MALI_USE_CSF
-	/* On CSF GPUs, Host driver isn't supposed to do the power management
-	 * for shader cores. CSF firmware will power up the cores appropriately
-	 * and so from Driver's standpoint 'shaders_desired' flag shall always
-	 * remain 0.
-	 */
-	shaders_desired = false;
 #endif
+
 	if (kbdev->pm.backend.shaders_desired != shaders_desired) {
-		KBASE_KTRACE_ADD(kbdev, PM_CORES_CHANGE_DESIRED, NULL, kbdev->pm.backend.shaders_desired);
+		KBASE_KTRACE_ADD(kbdev, PM_CORES_CHANGE_DESIRED, NULL,
+				 kbdev->pm.backend.shaders_desired);
 
 		kbdev->pm.backend.shaders_desired = shaders_desired;
 		kbase_pm_update_state(kbdev);
@@ -232,9 +237,10 @@ void kbase_pm_update_cores_state(struct kbase_device *kbdev)
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 }
 
-int kbase_pm_list_policies(struct kbase_device *kbdev,
-	const struct kbase_pm_policy * const **list)
+size_t kbase_pm_list_policies(struct kbase_device *kbdev,
+			      const struct kbase_pm_policy *const **list)
 {
+	CSTD_UNUSED(kbdev);
 	if (list)
 		*list = all_policy_list;
 
@@ -255,9 +261,8 @@ KBASE_EXPORT_TEST_API(kbase_pm_get_policy);
 #if MALI_USE_CSF
 static int policy_change_wait_for_L2_off(struct kbase_device *kbdev)
 {
-#define WAIT_DURATION_MS (3000)
 	long remaining;
-	long timeout = kbase_csf_timeout_in_jiffies(WAIT_DURATION_MS);
+	long timeout = kbase_csf_timeout_in_jiffies(kbase_get_timeout_ms(kbdev, CSF_PM_TIMEOUT));
 	int err = 0;
 
 	/* Wait for L2 becoming off, by which the MCU is also implicitly off
@@ -267,32 +272,29 @@ static int policy_change_wait_for_L2_off(struct kbase_device *kbdev)
 	 * for host control of shader cores.
 	 */
 #if KERNEL_VERSION(4, 13, 1) <= LINUX_VERSION_CODE
-	remaining = wait_event_killable_timeout(
-		kbdev->pm.backend.gpu_in_desired_state_wait,
-		kbdev->pm.backend.l2_state == KBASE_L2_OFF, timeout);
+	remaining = wait_event_killable_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
+						kbdev->pm.backend.l2_state == KBASE_L2_OFF,
+						timeout);
 #else
-	remaining = wait_event_timeout(
-		kbdev->pm.backend.gpu_in_desired_state_wait,
-		kbdev->pm.backend.l2_state == KBASE_L2_OFF, timeout);
+	remaining = wait_event_timeout(kbdev->pm.backend.gpu_in_desired_state_wait,
+				       kbdev->pm.backend.l2_state == KBASE_L2_OFF, timeout);
 #endif
 
 	if (!remaining) {
 		err = -ETIMEDOUT;
 	} else if (remaining < 0) {
-		dev_info(kbdev->dev,
-			 "Wait for L2_off got interrupted");
+		dev_info(kbdev->dev, "Wait for L2_off got interrupted");
 		err = (int)remaining;
 	}
 
-	dev_dbg(kbdev->dev, "%s: err=%d mcu_state=%d, L2_state=%d\n", __func__,
-		err, kbdev->pm.backend.mcu_state, kbdev->pm.backend.l2_state);
+	dev_dbg(kbdev->dev, "%s: err=%d mcu_state=%d, L2_state=%d\n", __func__, err,
+		kbdev->pm.backend.mcu_state, kbdev->pm.backend.l2_state);
 
 	return err;
 }
 #endif
 
-void kbase_pm_set_policy(struct kbase_device *kbdev,
-				const struct kbase_pm_policy *new_policy)
+void kbase_pm_set_policy(struct kbase_device *kbdev, const struct kbase_pm_policy *new_policy)
 {
 	const struct kbase_pm_policy *old_policy;
 	unsigned long flags;
@@ -300,6 +302,10 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 	unsigned int new_policy_csf_pm_sched_flags;
 	bool sched_suspend;
 	bool reset_gpu = false;
+	bool reset_op_prevented = true;
+	struct kbase_csf_scheduler *scheduler = NULL;
+	u64 pwroff_ns;
+	bool switching_to_always_on;
 #endif
 
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
@@ -308,9 +314,35 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 	KBASE_KTRACE_ADD(kbdev, PM_SET_POLICY, NULL, new_policy->id);
 
 #if MALI_USE_CSF
+	pwroff_ns = kbase_csf_firmware_get_mcu_core_pwroff_time(kbdev);
+	switching_to_always_on = new_policy == &kbase_pm_always_on_policy_ops;
+	if (pwroff_ns == 0 && !switching_to_always_on) {
+		dev_warn(
+			kbdev->dev,
+			"power_policy: cannot switch away from always_on with mcu_shader_pwroff_timeout set to 0\n");
+		dev_warn(
+			kbdev->dev,
+			"power_policy: resetting mcu_shader_pwroff_timeout to default value to switch policy from always_on\n");
+		kbase_csf_firmware_reset_mcu_core_pwroff_time(kbdev);
+	}
+
+	scheduler = &kbdev->csf.scheduler;
+	KBASE_DEBUG_ASSERT(scheduler != NULL);
+
 	/* Serialize calls on kbase_pm_set_policy() */
 	mutex_lock(&kbdev->pm.backend.policy_change_lock);
 
+	if (kbase_reset_gpu_prevent_and_wait(kbdev)) {
+		dev_warn(kbdev->dev, "Set PM policy failing to prevent gpu reset");
+		reset_op_prevented = false;
+	}
+
+	/* In case of CSF, the scheduler may be invoked to suspend. In that
+	 * case, there is a risk that the L2 may be turned on by the time we
+	 * check it here. So we hold the scheduler lock to avoid other operations
+	 * interfering with the policy change and vice versa.
+	 */
+	mutex_lock(&scheduler->lock);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	/* policy_change_clamp_state_to_off, when needed, is set/cleared in
 	 * this function, a very limited temporal scope for covering the
@@ -323,24 +355,22 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 	 * the always_on policy, reflected by the CSF_DYNAMIC_PM_CORE_KEEP_ON
 	 * flag bit.
 	 */
-	sched_suspend = kbdev->csf.firmware_inited &&
+	sched_suspend = reset_op_prevented &&
 			(CSF_DYNAMIC_PM_CORE_KEEP_ON &
-			 (new_policy_csf_pm_sched_flags |
-			  kbdev->pm.backend.csf_pm_sched_flags));
+			 (new_policy_csf_pm_sched_flags | kbdev->pm.backend.csf_pm_sched_flags));
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
-	if (sched_suspend)
-		kbase_csf_scheduler_pm_suspend(kbdev);
+	if (sched_suspend) {
+		/* Update the suspend flag to reflect actually suspend being done ! */
+		sched_suspend = !kbase_csf_scheduler_pm_suspend_no_lock(kbdev);
+		/* Set the reset recovery flag if the required suspend failed */
+		reset_gpu = !sched_suspend;
+	}
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	/* If the current active policy is always_on, one needs to clamp the
-	 * MCU/L2 for reaching off-state
-	 */
-	if (sched_suspend)
-		kbdev->pm.backend.policy_change_clamp_state_to_off =
-			CSF_DYNAMIC_PM_CORE_KEEP_ON & kbdev->pm.backend.csf_pm_sched_flags;
 
+	kbdev->pm.backend.policy_change_clamp_state_to_off = sched_suspend;
 	kbase_pm_update_state(kbdev);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
@@ -348,13 +378,17 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 		reset_gpu = policy_change_wait_for_L2_off(kbdev);
 #endif
 
+	kbase_pm_lock(kbdev);
+
 	/* During a policy change we pretend the GPU is active */
 	/* A suspend won't happen here, because we're in a syscall from a
 	 * userspace thread
 	 */
-	kbase_pm_context_active(kbdev);
-
-	kbase_pm_lock(kbdev);
+	if (kbase_pm_context_active_handle_suspend_locked(kbdev,
+							  KBASE_PM_SUSPEND_HANDLER_NOT_POSSIBLE))
+		dev_warn_once(
+			kbdev->dev,
+			"Error shouldn't be returned with SUSPEND_HANDLER_NOT_POSSIBLE flag.");
 
 	/* Remove the policy to prevent IRQ handlers from working on it */
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
@@ -366,8 +400,7 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 	if (old_policy->term)
 		old_policy->term(kbdev);
 
-	memset(&kbdev->pm.backend.pm_policy_data, 0,
-	       sizeof(union kbase_pm_policy_data));
+	memset(&kbdev->pm.backend.pm_policy_data, 0, sizeof(union kbase_pm_policy_data));
 
 	KBASE_KTRACE_ADD(kbdev, PM_CURRENT_POLICY_INIT, NULL, new_policy->id);
 	if (new_policy->init)
@@ -380,6 +413,13 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 	/* New policy in place, release the clamping on mcu/L2 off state */
 	kbdev->pm.backend.policy_change_clamp_state_to_off = false;
 	kbase_pm_update_state(kbdev);
+
+#ifdef KBASE_PM_RUNTIME
+	if (kbase_pm_idle_groups_sched_suspendable(kbdev))
+		clear_bit(KBASE_GPU_IGNORE_IDLE_EVENT, &kbdev->pm.backend.gpu_sleep_allowed);
+	else
+		set_bit(KBASE_GPU_IGNORE_IDLE_EVENT, &kbdev->pm.backend.gpu_sleep_allowed);
+#endif /* KBASE_PM_RUNTIME */
 #endif
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
@@ -390,22 +430,27 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 	kbase_pm_update_active(kbdev);
 	kbase_pm_update_cores_state(kbdev);
 
-	kbase_pm_unlock(kbdev);
-
 	/* Now the policy change is finished, we release our fake context active
 	 * reference
 	 */
-	kbase_pm_context_idle(kbdev);
+	kbase_pm_context_idle_locked(kbdev);
+	kbase_pm_unlock(kbdev);
 
 #if MALI_USE_CSF
 	/* Reverse the suspension done */
+	if (sched_suspend)
+		kbase_csf_scheduler_pm_resume_no_lock(kbdev);
+	mutex_unlock(&scheduler->lock);
+
+	if (reset_op_prevented)
+		kbase_reset_gpu_allow(kbdev);
+
 	if (reset_gpu) {
 		dev_warn(kbdev->dev, "Resorting to GPU reset for policy change\n");
 		if (kbase_prepare_to_reset_gpu(kbdev, RESET_FLAGS_NONE))
 			kbase_reset_gpu(kbdev);
 		kbase_reset_gpu_wait(kbdev);
-	} else if (sched_suspend)
-		kbase_csf_scheduler_pm_resume(kbdev);
+	}
 
 	mutex_unlock(&kbdev->pm.backend.policy_change_lock);
 #endif

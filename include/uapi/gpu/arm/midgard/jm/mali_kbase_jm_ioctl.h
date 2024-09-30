@@ -1,7 +1,7 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -119,9 +119,64 @@
  * 11.31:
  * - Added BASE_JD_REQ_LIMITED_CORE_MASK.
  * - Added ioctl 55: set_limited_core_count.
- */
+ * 11.32:
+ * - Added new HW performance counters interface to all GPUs.
+ * 11.33:
+ * - Removed Kernel legacy HWC interface
+ * 11.34:
+ * - First release of new HW performance counters interface.
+ * 11.35:
+ * - Dummy model (no mali) backend will now clear HWC values after each sample
+ * 11.36:
+ * - Remove legacy definitions:
+ *   - base_jit_alloc_info_10_2
+ *   - base_jit_alloc_info_11_5
+ *   - kbase_ioctl_mem_jit_init_10_2
+ *   - kbase_ioctl_mem_jit_init_11_5
+ * 11.37:
+ * - Fix kinstr_prfcnt issues:
+ *   - Missing implicit sample for CMD_STOP when HWCNT buffer is full.
+ *   - Race condition when stopping periodic sampling.
+ *   - prfcnt_block_metadata::block_idx gaps.
+ *   - PRFCNT_CONTROL_CMD_SAMPLE_ASYNC is removed.
+ * 11.38:
+ * - Relax the requirement to create a mapping with BASE_MEM_MAP_TRACKING_HANDLE
+ *   before allocating GPU memory for the context.
+ * - CPU mappings of USER_BUFFER imported memory handles must be cached.
+ * 11.39:
+ * - Restrict child process from doing supported file operations (like mmap, ioctl,
+ *   read, poll) on the file descriptor of mali device file that was inherited
+ *   from the parent process.
+ * 11.40:
+ * - Remove KBASE_IOCTL_HWCNT_READER_SETUP and KBASE_HWCNT_READER_* ioctls.
+ * - Made the BASE_MEM_DONT_NEED memory flag queryable.
+ * 11.41:
+ * - Disallows changing the sharability on the GPU of imported dma-bufs to
+ *   BASE_MEM_COHERENT_SYSTEM using KBASE_IOCTL_MEM_FLAGS_CHANGE.
+ * 11.42:
+ * - Implement full block state support for hardware counters.
+ * 11.43:
+ * - Made the BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP and BASE_MEM_KERNEL_SYNC memory
+ *   flags queryable.
+ * 11.44:
+ * - Made the SAME_VA memory flag queryable.
+ * 11.45:
+ * - Re-allow child process to do supported file operations (like mmap, ioctl
+ *   read, poll) on the file descriptor of mali device that was inherited
+ *   from the parent process.
+ * 11.46:
+ * - Remove renderpass_id from base_jd_atom_v2 to deprecate support for JM Incremental Rendering
+ * 11.47:
+ * - Reject non-protected allocations containing the BASE_MEM_PROTECTED memory flag.
+ * - Reject allocations containing the BASE_MEM_DONT_NEED memory flag (it is only settable).
+ * - Reject allocations containing the BASE_MEM_UNUSED_BIT_xx memory flags.
+ * 11.48:
+ * - Add UNUSED_BIT_5, UNUSED_BIT_7, UNUSED_BIT_27 and UNUSED_BIT_29 previously occupied by
+ *   kernel-only flags to kbase cap table.
+  */
+
 #define BASE_UK_VERSION_MAJOR 11
-#define BASE_UK_VERSION_MINOR 31
+#define BASE_UK_VERSION_MINOR 48
 
 /**
  * struct kbase_ioctl_version_check - Check version compatibility between
@@ -135,9 +190,7 @@ struct kbase_ioctl_version_check {
 	__u16 minor;
 };
 
-#define KBASE_IOCTL_VERSION_CHECK \
-	_IOWR(KBASE_IOCTL_TYPE, 0, struct kbase_ioctl_version_check)
-
+#define KBASE_IOCTL_VERSION_CHECK _IOWR(KBASE_IOCTL_TYPE, 0, struct kbase_ioctl_version_check)
 
 /**
  * struct kbase_ioctl_job_submit - Submit jobs/atoms to the kernel
@@ -152,11 +205,9 @@ struct kbase_ioctl_job_submit {
 	__u32 stride;
 };
 
-#define KBASE_IOCTL_JOB_SUBMIT \
-	_IOW(KBASE_IOCTL_TYPE, 2, struct kbase_ioctl_job_submit)
+#define KBASE_IOCTL_JOB_SUBMIT _IOW(KBASE_IOCTL_TYPE, 2, struct kbase_ioctl_job_submit)
 
-#define KBASE_IOCTL_POST_TERM \
-	_IO(KBASE_IOCTL_TYPE, 4)
+#define KBASE_IOCTL_POST_TERM _IO(KBASE_IOCTL_TYPE, 4)
 
 /**
  * struct kbase_ioctl_soft_event_update - Update the status of a soft-event
@@ -213,9 +264,7 @@ union kbase_kinstr_jm_fd {
 	struct kbase_kinstr_jm_fd_out out;
 };
 
-#define KBASE_IOCTL_KINSTR_JM_FD \
-	_IOWR(KBASE_IOCTL_TYPE, 51, union kbase_kinstr_jm_fd)
-
+#define KBASE_IOCTL_KINSTR_JM_FD _IOWR(KBASE_IOCTL_TYPE, 51, union kbase_kinstr_jm_fd)
 
 #define KBASE_IOCTL_VERSION_CHECK_RESERVED \
 	_IOWR(KBASE_IOCTL_TYPE, 52, struct kbase_ioctl_version_check)

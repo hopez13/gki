@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
  * (C) COPYRIGHT 2012-2015, 2018, 2020-2021 ARM Limited. All rights reserved.
@@ -52,10 +52,8 @@
 /**
  * struct kbasep_pm_policy_coarse_demand - Private structure for coarse demand
  *                                         policy
- *
- * This contains data that is private to the coarse demand power policy.
- *
  * @dummy: Dummy member - no state needed
+ * This contains data that is private to the coarse demand power policy.
  */
 struct kbasep_pm_policy_coarse_demand {
 	int dummy;

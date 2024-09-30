@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -27,26 +27,20 @@
 #include <linux/module.h>
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <linux/debugfs.h>
+#include <linux/version_compat_defs.h>
 #endif
 #include <linux/mm.h>
 #include <linux/memory_group_manager.h>
 
-#if (KERNEL_VERSION(4, 20, 0) > LINUX_VERSION_CODE)
-static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma,
-			unsigned long addr, unsigned long pfn, pgprot_t pgprot)
-{
-	int err;
-
-#if ((KERNEL_VERSION(4, 4, 147) >= LINUX_VERSION_CODE) || \
-		((KERNEL_VERSION(4, 6, 0) > LINUX_VERSION_CODE) && \
-		 (KERNEL_VERSION(4, 5, 0) <= LINUX_VERSION_CODE)))
-	if (pgprot_val(pgprot) != pgprot_val(vma->vm_page_prot))
-		return VM_FAULT_SIGBUS;
-
-	err = vm_insert_pfn(vma, addr, pfn);
-#else
-	err = vm_insert_pfn_prot(vma, addr, pfn, pgprot);
+#ifndef CSTD_UNUSED
+#define CSTD_UNUSED(x) ((void)(x))
 #endif
+
+#if (KERNEL_VERSION(4, 20, 0) > LINUX_VERSION_CODE)
+static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma, unsigned long addr,
+					     unsigned long pfn, pgprot_t pgprot)
+{
+	int err = vm_insert_pfn_prot(vma, addr, pfn, pgprot);
 
 	if (unlikely(err == -ENOMEM))
 		return VM_FAULT_OOM;
@@ -63,7 +57,7 @@ static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma,
  * struct mgm_group - Structure to keep track of the number of allocated
  *                    pages per group
  *
- * @size:  The number of allocated small(4KB) pages
+ * @size:  The number of allocated small pages of PAGE_SIZE bytes
  * @lp_size:  The number of allocated large(2MB) pages
  * @insert_pfn: The number of calls to map pages for CPU access.
  * @update_gpu_pte: The number of calls to update GPU page table entries.
@@ -72,10 +66,10 @@ static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma,
  * debugfs. Display is organized per group with small and large sized pages.
  */
 struct mgm_group {
-	size_t size;
-	size_t lp_size;
-	size_t insert_pfn;
-	size_t update_gpu_pte;
+	atomic_t size;
+	atomic_t lp_size;
+	atomic_t insert_pfn;
+	atomic_t update_gpu_pte;
 };
 
 /**
@@ -102,7 +96,7 @@ static int mgm_size_get(void *data, u64 *val)
 {
 	struct mgm_group *group = data;
 
-	*val = group->size;
+	*val = (u64)atomic_read(&group->size);
 
 	return 0;
 }
@@ -110,38 +104,28 @@ static int mgm_size_get(void *data, u64 *val)
 static int mgm_lp_size_get(void *data, u64 *val)
 {
 	struct mgm_group *group = data;
-
-	*val = group->lp_size;
-
+	*val = (u64)atomic_read(&group->lp_size);
 	return 0;
 }
 
 static int mgm_insert_pfn_get(void *data, u64 *val)
 {
 	struct mgm_group *group = data;
-
-	*val = group->insert_pfn;
-
+	*val = (u64)atomic_read(&group->insert_pfn);
 	return 0;
 }
 
 static int mgm_update_gpu_pte_get(void *data, u64 *val)
 {
 	struct mgm_group *group = data;
-
-	*val = group->update_gpu_pte;
-
+	*val = (u64)atomic_read(&group->update_gpu_pte);
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(fops_mgm_size, mgm_size_get, NULL, "%llu\n");
-DEFINE_SIMPLE_ATTRIBUTE(fops_mgm_lp_size, mgm_lp_size_get, NULL, "%llu\n");
-
-DEFINE_SIMPLE_ATTRIBUTE(fops_mgm_insert_pfn, mgm_insert_pfn_get, NULL,
-	"%llu\n");
-
-DEFINE_SIMPLE_ATTRIBUTE(fops_mgm_update_gpu_pte, mgm_update_gpu_pte_get, NULL,
-	"%llu\n");
+DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_size, mgm_size_get, NULL, "%llu\n");
+DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_lp_size, mgm_lp_size_get, NULL, "%llu\n");
+DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_insert_pfn, mgm_insert_pfn_get, NULL, "%llu\n");
+DEFINE_DEBUGFS_ATTRIBUTE(fops_mgm_update_gpu_pte, mgm_update_gpu_pte_get, NULL, "%llu\n");
 
 static void mgm_term_debugfs(struct mgm_groups *data)
 {
@@ -158,9 +142,8 @@ static int mgm_initialize_debugfs(struct mgm_groups *mgm_data)
 	/*
 	 * Create root directory of memory-group-manager
 	 */
-	mgm_data->mgm_debugfs_root =
-		debugfs_create_dir("physical-memory-group-manager", NULL);
-	if (IS_ERR(mgm_data->mgm_debugfs_root)) {
+	mgm_data->mgm_debugfs_root = debugfs_create_dir("physical-memory-group-manager", NULL);
+	if (IS_ERR_OR_NULL(mgm_data->mgm_debugfs_root)) {
 		dev_err(mgm_data->dev, "fail to create debugfs root directory\n");
 		return -ENODEV;
 	}
@@ -169,43 +152,37 @@ static int mgm_initialize_debugfs(struct mgm_groups *mgm_data)
 	 * Create debugfs files per group
 	 */
 	for (i = 0; i < MEMORY_GROUP_MANAGER_NR_GROUPS; i++) {
-		scnprintf(debugfs_group_name, MGM_DEBUGFS_GROUP_NAME_MAX,
-				"group_%d", i);
-		g = debugfs_create_dir(debugfs_group_name,
-				mgm_data->mgm_debugfs_root);
-		if (IS_ERR(g)) {
+		scnprintf(debugfs_group_name, MGM_DEBUGFS_GROUP_NAME_MAX, "group_%d", i);
+		g = debugfs_create_dir(debugfs_group_name, mgm_data->mgm_debugfs_root);
+		if (IS_ERR_OR_NULL(g)) {
 			dev_err(mgm_data->dev, "fail to create group[%d]\n", i);
 			goto remove_debugfs;
 		}
 
-		e = debugfs_create_file("size", 0444, g, &mgm_data->groups[i],
-				&fops_mgm_size);
-		if (IS_ERR(e)) {
+		e = debugfs_create_file("size", 0444, g, &mgm_data->groups[i], &fops_mgm_size);
+		if (IS_ERR_OR_NULL(e)) {
 			dev_err(mgm_data->dev, "fail to create size[%d]\n", i);
 			goto remove_debugfs;
 		}
 
-		e = debugfs_create_file("lp_size", 0444, g,
-				&mgm_data->groups[i], &fops_mgm_lp_size);
-		if (IS_ERR(e)) {
-			dev_err(mgm_data->dev,
-				"fail to create lp_size[%d]\n", i);
+		e = debugfs_create_file("lp_size", 0444, g, &mgm_data->groups[i],
+					&fops_mgm_lp_size);
+		if (IS_ERR_OR_NULL(e)) {
+			dev_err(mgm_data->dev, "fail to create lp_size[%d]\n", i);
 			goto remove_debugfs;
 		}
 
-		e = debugfs_create_file("insert_pfn", 0444, g,
-				&mgm_data->groups[i], &fops_mgm_insert_pfn);
-		if (IS_ERR(e)) {
-			dev_err(mgm_data->dev,
-				"fail to create insert_pfn[%d]\n", i);
+		e = debugfs_create_file("insert_pfn", 0444, g, &mgm_data->groups[i],
+					&fops_mgm_insert_pfn);
+		if (IS_ERR_OR_NULL(e)) {
+			dev_err(mgm_data->dev, "fail to create insert_pfn[%d]\n", i);
 			goto remove_debugfs;
 		}
 
-		e = debugfs_create_file("update_gpu_pte", 0444, g,
-				&mgm_data->groups[i], &fops_mgm_update_gpu_pte);
-		if (IS_ERR(e)) {
-			dev_err(mgm_data->dev,
-				"fail to create update_gpu_pte[%d]\n", i);
+		e = debugfs_create_file("update_gpu_pte", 0444, g, &mgm_data->groups[i],
+					&fops_mgm_update_gpu_pte);
+		if (IS_ERR_OR_NULL(e)) {
+			dev_err(mgm_data->dev, "fail to create update_gpu_pte[%d]\n", i);
 			goto remove_debugfs;
 		}
 	}
@@ -231,49 +208,48 @@ static int mgm_initialize_debugfs(struct mgm_groups *mgm_data)
 #endif /* CONFIG_DEBUG_FS */
 
 #define ORDER_SMALL_PAGE 0
-#define ORDER_LARGE_PAGE 9
-static void update_size(struct memory_group_manager_device *mgm_dev, int
-		group_id, int order, bool alloc)
+#define ORDER_LARGE_PAGE (__builtin_ffs(SZ_2M / PAGE_SIZE) - 1)
+static void update_size(struct memory_group_manager_device *mgm_dev, unsigned int group_id,
+			unsigned int order, bool alloc)
 {
 	struct mgm_groups *data = mgm_dev->data;
 
 	switch (order) {
 	case ORDER_SMALL_PAGE:
 		if (alloc)
-			data->groups[group_id].size++;
+			atomic_inc(&data->groups[group_id].size);
 		else {
-			WARN_ON(data->groups[group_id].size == 0);
-			data->groups[group_id].size--;
+			WARN_ON(atomic_read(&data->groups[group_id].size) == 0);
+			atomic_dec(&data->groups[group_id].size);
 		}
-	break;
+		break;
 
 	case ORDER_LARGE_PAGE:
 		if (alloc)
-			data->groups[group_id].lp_size++;
+			atomic_inc(&data->groups[group_id].lp_size);
 		else {
-			WARN_ON(data->groups[group_id].lp_size == 0);
-			data->groups[group_id].lp_size--;
+			WARN_ON(atomic_read(&data->groups[group_id].lp_size) == 0);
+			atomic_dec(&data->groups[group_id].lp_size);
 		}
-	break;
+		break;
 
 	default:
-		dev_err(data->dev, "Unknown order(%d)\n", order);
-	break;
+		dev_err(data->dev, "Unknown order(%u)\n", order);
+		break;
 	}
 }
 
-static struct page *example_mgm_alloc_page(
-	struct memory_group_manager_device *mgm_dev, int group_id,
-	gfp_t gfp_mask, unsigned int order)
+static struct page *example_mgm_alloc_page(struct memory_group_manager_device *mgm_dev,
+					   unsigned int group_id, gfp_t gfp_mask,
+					   unsigned int order)
 {
 	struct mgm_groups *const data = mgm_dev->data;
 	struct page *p;
 
-	dev_dbg(data->dev, "%s(mgm_dev=%p, group_id=%d gfp_mask=0x%x order=%u\n",
-		__func__, (void *)mgm_dev, group_id, gfp_mask, order);
+	dev_dbg(data->dev, "%s(mgm_dev=%pK, group_id=%u gfp_mask=0x%x order=%u\n", __func__,
+		(void *)mgm_dev, group_id, gfp_mask, order);
 
-	if (WARN_ON(group_id < 0) ||
-		WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
+	if (WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
 		return NULL;
 
 	p = alloc_pages(gfp_mask, order);
@@ -283,23 +259,21 @@ static struct page *example_mgm_alloc_page(
 	} else {
 		struct mgm_groups *data = mgm_dev->data;
 
-		dev_err(data->dev, "alloc_pages failed\n");
+		dev_dbg(data->dev, "alloc_pages failed\n");
 	}
 
 	return p;
 }
 
-static void example_mgm_free_page(
-	struct memory_group_manager_device *mgm_dev, int group_id,
-	struct page *page, unsigned int order)
+static void example_mgm_free_page(struct memory_group_manager_device *mgm_dev,
+				  unsigned int group_id, struct page *page, unsigned int order)
 {
 	struct mgm_groups *const data = mgm_dev->data;
 
-	dev_dbg(data->dev, "%s(mgm_dev=%p, group_id=%d page=%p order=%u\n",
-		__func__, (void *)mgm_dev, group_id, (void *)page, order);
+	dev_dbg(data->dev, "%s(mgm_dev=%pK, group_id=%u page=%pK order=%u\n", __func__,
+		(void *)mgm_dev, group_id, (void *)page, order);
 
-	if (WARN_ON(group_id < 0) ||
-		WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
+	if (WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
 		return;
 
 	__free_pages(page, order);
@@ -307,74 +281,99 @@ static void example_mgm_free_page(
 	update_size(mgm_dev, group_id, order, false);
 }
 
-static int example_mgm_get_import_memory_id(
-	struct memory_group_manager_device *mgm_dev,
-	struct memory_group_manager_import_data *import_data)
+static int example_mgm_get_import_memory_id(struct memory_group_manager_device *mgm_dev,
+					    struct memory_group_manager_import_data *import_data)
 {
 	struct mgm_groups *const data = mgm_dev->data;
 
-	dev_dbg(data->dev, "%s(mgm_dev=%p, import_data=%p (type=%d)\n",
-		__func__, (void *)mgm_dev, (void *)import_data,
-		(int)import_data->type);
+	dev_dbg(data->dev, "%s(mgm_dev=%pK, import_data=%pK (type=%d)\n", __func__, (void *)mgm_dev,
+		(void *)import_data, (int)import_data->type);
 
 	if (!WARN_ON(!import_data)) {
 		WARN_ON(!import_data->u.dma_buf);
 
-		WARN_ON(import_data->type !=
-				MEMORY_GROUP_MANAGER_IMPORT_TYPE_DMA_BUF);
+		WARN_ON(import_data->type != MEMORY_GROUP_MANAGER_IMPORT_TYPE_DMA_BUF);
 	}
 
 	return IMPORTED_MEMORY_ID;
 }
 
-static u64 example_mgm_update_gpu_pte(
-	struct memory_group_manager_device *const mgm_dev, int const group_id,
-	int const mmu_level, u64 pte)
+static u64 example_mgm_update_gpu_pte(struct memory_group_manager_device *const mgm_dev,
+				      unsigned int const group_id, unsigned int const pbha_id,
+				      unsigned int pte_flags, int const mmu_level, u64 pte)
 {
 	struct mgm_groups *const data = mgm_dev->data;
-	const u32 pbha_bit_pos = 59; /* bits 62:59 */
-	const u32 pbha_bit_mask = 0xf; /* 4-bit */
 
-	dev_dbg(data->dev,
-		"%s(mgm_dev=%p, group_id=%d, mmu_level=%d, pte=0x%llx)\n",
-		__func__, (void *)mgm_dev, group_id, mmu_level, pte);
+	dev_dbg(data->dev, "%s(mgm_dev=%pK, group_id=%u, mmu_level=%d, pte=0x%llx)\n", __func__,
+		(void *)mgm_dev, group_id, mmu_level, pte);
 
-	if (WARN_ON(group_id < 0) ||
-		WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
+	if (WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
 		return pte;
 
-	pte |= ((u64)group_id & pbha_bit_mask) << pbha_bit_pos;
+	if (pte_flags & BIT(MMA_VIOLATION)) {
+		pr_warn_once("MMA violation! Applying PBHA override workaround to PTE\n");
+		pte |= ((u64)pbha_id << PTE_PBHA_SHIFT) & PTE_PBHA_MASK;
+	}
 
-	data->groups[group_id].update_gpu_pte++;
+	/* Address could be translated into a different bus address here */
+	pte |= ((u64)1 << PTE_RES_BIT_MULTI_AS_SHIFT);
+
+	atomic_inc(&data->groups[group_id].update_gpu_pte);
 
 	return pte;
 }
 
-static vm_fault_t example_mgm_vmf_insert_pfn_prot(
-	struct memory_group_manager_device *const mgm_dev, int const group_id,
-	struct vm_area_struct *const vma, unsigned long const addr,
-	unsigned long const pfn, pgprot_t const prot)
+static u64 example_mgm_pte_to_original_pte(struct memory_group_manager_device *const mgm_dev,
+					   unsigned int const group_id, int const mmu_level,
+					   u64 pte)
+{
+	CSTD_UNUSED(mgm_dev);
+	CSTD_UNUSED(group_id);
+	CSTD_UNUSED(mmu_level);
+
+	/* Undo the group ID modification */
+	pte &= ~PTE_PBHA_MASK;
+	/* Undo the bit set */
+	pte &= ~((u64)1 << PTE_RES_BIT_MULTI_AS_SHIFT);
+
+	return pte;
+}
+
+static vm_fault_t example_mgm_vmf_insert_pfn_prot(struct memory_group_manager_device *const mgm_dev,
+						  unsigned int const group_id,
+						  struct vm_area_struct *const vma,
+						  unsigned long const addr, unsigned long const pfn,
+						  pgprot_t const prot)
 {
 	struct mgm_groups *const data = mgm_dev->data;
 	vm_fault_t fault;
 
 	dev_dbg(data->dev,
-		"%s(mgm_dev=%p, group_id=%d, vma=%p, addr=0x%lx, pfn=0x%lx, prot=0x%llx)\n",
+		"%s(mgm_dev=%pK, group_id=%u, vma=%pK, addr=0x%lx, pfn=0x%lx, prot=0x%llx)\n",
 		__func__, (void *)mgm_dev, group_id, (void *)vma, addr, pfn,
-		(unsigned long long int) pgprot_val(prot));
+		(unsigned long long)pgprot_val(prot));
 
-	if (WARN_ON(group_id < 0) ||
-		WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
+	if (WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
 		return VM_FAULT_SIGBUS;
 
 	fault = vmf_insert_pfn_prot(vma, addr, pfn, prot);
 
 	if (fault == VM_FAULT_NOPAGE)
-		data->groups[group_id].insert_pfn++;
+		atomic_inc(&data->groups[group_id].insert_pfn);
 	else
 		dev_err(data->dev, "vmf_insert_pfn_prot failed\n");
 
 	return fault;
+}
+
+static bool example_mgm_get_import_memory_cached_access_permitted(
+	struct memory_group_manager_device *mgm_dev,
+	struct memory_group_manager_import_data *import_data)
+{
+	CSTD_UNUSED(mgm_dev);
+	CSTD_UNUSED(import_data);
+
+	return true;
 }
 
 static int mgm_initialize_data(struct mgm_groups *mgm_data)
@@ -382,10 +381,10 @@ static int mgm_initialize_data(struct mgm_groups *mgm_data)
 	int i;
 
 	for (i = 0; i < MEMORY_GROUP_MANAGER_NR_GROUPS; i++) {
-		mgm_data->groups[i].size = 0;
-		mgm_data->groups[i].lp_size = 0;
-		mgm_data->groups[i].insert_pfn = 0;
-		mgm_data->groups[i].update_gpu_pte = 0;
+		atomic_set(&mgm_data->groups[i].size, 0);
+		atomic_set(&mgm_data->groups[i].lp_size, 0);
+		atomic_set(&mgm_data->groups[i].insert_pfn, 0);
+		atomic_set(&mgm_data->groups[i].update_gpu_pte, 0);
 	}
 
 	return mgm_initialize_debugfs(mgm_data);
@@ -396,14 +395,12 @@ static void mgm_term_data(struct mgm_groups *data)
 	int i;
 
 	for (i = 0; i < MEMORY_GROUP_MANAGER_NR_GROUPS; i++) {
-		if (data->groups[i].size != 0)
-			dev_warn(data->dev,
-				"%zu 0-order pages in group(%d) leaked\n",
-				data->groups[i].size, i);
-		if (data->groups[i].lp_size != 0)
-			dev_warn(data->dev,
-				"%zu 9 order pages in group(%d) leaked\n",
-				data->groups[i].lp_size, i);
+		if (atomic_read(&data->groups[i].size) != 0)
+			dev_warn(data->dev, "%d 0-order pages in group(%d) leaked\n",
+				 atomic_read(&data->groups[i].size), i);
+		if (atomic_read(&data->groups[i].lp_size) != 0)
+			dev_warn(data->dev, "%d 9 order pages in group(%d) leaked\n",
+				 atomic_read(&data->groups[i].lp_size), i);
 	}
 
 	mgm_term_debugfs(data);
@@ -421,10 +418,12 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 	mgm_dev->owner = THIS_MODULE;
 	mgm_dev->ops.mgm_alloc_page = example_mgm_alloc_page;
 	mgm_dev->ops.mgm_free_page = example_mgm_free_page;
-	mgm_dev->ops.mgm_get_import_memory_id =
-			example_mgm_get_import_memory_id;
+	mgm_dev->ops.mgm_get_import_memory_id = example_mgm_get_import_memory_id;
 	mgm_dev->ops.mgm_vmf_insert_pfn_prot = example_mgm_vmf_insert_pfn_prot;
 	mgm_dev->ops.mgm_update_gpu_pte = example_mgm_update_gpu_pte;
+	mgm_dev->ops.mgm_pte_to_original_pte = example_mgm_pte_to_original_pte;
+	mgm_dev->ops.mgm_get_import_memory_cached_access_permitted =
+		example_mgm_get_import_memory_cached_access_permitted;
 
 	mgm_data = kzalloc(sizeof(*mgm_data), GFP_KERNEL);
 	if (!mgm_data) {
@@ -449,8 +448,7 @@ static int memory_group_manager_probe(struct platform_device *pdev)
 
 static int memory_group_manager_remove(struct platform_device *pdev)
 {
-	struct memory_group_manager_device *mgm_dev =
-		platform_get_drvdata(pdev);
+	struct memory_group_manager_device *mgm_dev = platform_get_drvdata(pdev);
 	struct mgm_groups *mgm_data = mgm_dev->data;
 
 	mgm_term_data(mgm_data);
@@ -469,20 +467,20 @@ static const struct of_device_id memory_group_manager_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, memory_group_manager_dt_ids);
 
-static struct platform_driver memory_group_manager_driver = {
-	.probe = memory_group_manager_probe,
-	.remove = memory_group_manager_remove,
-	.driver = {
-		.name = "physical-memory-group-manager",
-		.of_match_table = of_match_ptr(memory_group_manager_dt_ids),
-		/*
+static struct platform_driver
+	memory_group_manager_driver = { .probe = memory_group_manager_probe,
+					.remove = memory_group_manager_remove,
+					.driver = {
+						.name = "physical-memory-group-manager",
+						.of_match_table =
+							of_match_ptr(memory_group_manager_dt_ids),
+						/*
 		 * Prevent the mgm_dev from being unbound and freed, as other's
 		 * may have pointers to it and would get confused, or crash, if
 		 * it suddenly disappear.
 		 */
-		.suppress_bind_attrs = true,
-	}
-};
+						.suppress_bind_attrs = true,
+					} };
 
 module_platform_driver(memory_group_manager_driver);
 
