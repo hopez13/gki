@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+// SPDX-License-Identifier: GPL-2.0
 /*
  *
  * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
@@ -155,6 +155,9 @@ int kbase_context_common_init(struct kbase_context *kctx)
 #if !MALI_USE_CSF
 	atomic_set(&kctx->event_closed, false);
 #if IS_ENABLED(CONFIG_GPU_TRACEPOINTS)
+	atomic_set(&kctx->jctx.work_id, 0);
+#endif
+#if defined(CONFIG_MALI_MTK_GPU_BM_2)
 	atomic_set(&kctx->jctx.work_id, 0);
 #endif
 #endif

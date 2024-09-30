@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+// SPDX-License-Identifier: GPL-2.0
 /*
  *
  * (C) COPYRIGHT 2010-2014, 2016-2021 ARM Limited. All rights reserved.

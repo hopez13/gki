@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+// SPDX-License-Identifier: GPL-2.0
 /*
  *
  * (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
@@ -1081,7 +1081,9 @@ static void kbase_debug_dump_registers(struct kbase_device *kbdev)
 {
 	int i;
 
+#if defined(CONFIG_DEBUG_FS)
 	kbase_io_history_dump(kbdev);
+#endif
 
 	dev_err(kbdev->dev, "Register state:");
 	dev_err(kbdev->dev, "  GPU_IRQ_RAWSTAT=0x%08x GPU_STATUS=0x%08x",

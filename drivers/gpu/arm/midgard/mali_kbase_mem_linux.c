@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+// SPDX-License-Identifier: GPL-2.0
 /*
  *
  * (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
@@ -47,6 +47,16 @@
 #include <mali_kbase_caps.h>
 #include <mali_kbase_trace_gpu_mem.h>
 #include <mali_kbase_reset_gpu.h>
+
+#if IS_ENABLED(CONFIG_MTK_IOMMU_V2)
+#include <asm/cacheflush.h>
+static DEFINE_MUTEX(ion_config_lock);
+#endif
+
+#if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE)
+#include <trusted_mem_api.h>
+#include <mtk/ion_sec_heap.h>
+#endif
 
 #if ((KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE) || \
 	(KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE))
@@ -639,12 +649,21 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 
 	kctx = container_of(s, struct kbase_context, reclaim);
 
+	// MTK add to prevent false alarm
+	lockdep_off();
+
+#if !IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	// avoid to report when shrinking for mtk_iova_dbg_alloc
 	WARN((sc->gfp_mask & __GFP_ATOMIC),
 	     "Shrinkers cannot be called for GFP_ATOMIC allocations. Check kernel mm for problems. gfp_mask==%x\n",
 	     sc->gfp_mask);
 	WARN(in_atomic(),
 	     "Shrinker called whilst in atomic context. The caller must switch to using GFP_ATOMIC or similar. gfp_mask==%x\n",
 	     sc->gfp_mask);
+#endif
+
+	// MTK add to prevent false alarm
+	lockdep_on();
 
 	return atomic_read(&kctx->evict_nents);
 }
@@ -678,6 +697,9 @@ unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s,
 	unsigned long freed = 0;
 
 	kctx = container_of(s, struct kbase_context, reclaim);
+
+	// MTK add to prevent false alarm
+	lockdep_off();
 
 	mutex_lock(&kctx->jit_evict_lock);
 
@@ -720,6 +742,9 @@ unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s,
 	}
 out_unlock:
 	mutex_unlock(&kctx->jit_evict_lock);
+
+	// MTK add to prevent false alarm
+	lockdep_on();
 
 	return freed;
 }
@@ -1155,12 +1180,47 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 	int err;
 	size_t count = 0;
 	struct kbase_mem_phy_alloc *alloc = reg->gpu_alloc;
+#if IS_ENABLED(CONFIG_MTK_IOMMU_V2)
+	struct ion_mm_data mm_data;
+	int retry_cnt = 0;
+#endif
 
 	WARN_ON_ONCE(alloc->type != KBASE_MEM_TYPE_IMPORTED_UMM);
 	WARN_ON_ONCE(alloc->imported.umm.sgt);
 
+#if IS_ENABLED(CONFIG_MTK_IOMMU_V2)
+	mutex_lock(&ion_config_lock);
+
+	mm_data.mm_cmd = ION_MM_CONFIG_BUFFER;
+	mm_data.config_buffer_param.kernel_handle =
+			alloc->imported.umm.ion_handle;
+	mm_data.config_buffer_param.module_id = M4U_PORT_GPU;
+	mm_data.config_buffer_param.security = 0;
+	mm_data.config_buffer_param.coherent = 0;
+
+retry:
+	err = ion_kernel_ioctl(kctx->kbdev->client,
+			ION_CMD_MULTIMEDIA, (unsigned long)&mm_data);
+
+	if (err == -ION_ERROR_CONFIG_CONFLICT && retry_cnt < 1000) {
+		retry_cnt++;
+		goto retry;
+	} else if (err) {
+		dev_warn(kctx->kbdev->dev,
+				"fail to config ion buffer, err=%d, retry_cnt %d\n",
+				err, retry_cnt);
+		mutex_unlock(&ion_config_lock);
+		return -EINVAL;
+	}
+#endif
+
 	sgt = dma_buf_map_attachment(alloc->imported.umm.dma_attachment,
 			DMA_BIDIRECTIONAL);
+
+#if IS_ENABLED(CONFIG_MTK_IOMMU_V2)
+	mutex_unlock(&ion_config_lock);
+#endif
+
 	if (IS_ERR_OR_NULL(sgt))
 		return -EINVAL;
 
@@ -1171,17 +1231,43 @@ static int kbase_mem_umm_map_attachment(struct kbase_context *kctx,
 
 	for_each_sg(sgt->sgl, s, sgt->nents, i) {
 		size_t j, pages = PFN_UP(sg_dma_len(s));
+		uint64_t phy_addr = 0;
+
+#if defined(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) && defined(CONFIG_MTK_GZ_KREE)
+		if (reg->flags & KBASE_REG_PROTECTED) {
+			u32 sec_handle = sg_dma_address(s);
+			struct dma_buf *dma_buf = reg->gpu_alloc->imported.umm.dma_buf;
+			enum TRUSTED_MEM_REQ_TYPE sec_mem_type =
+				ion_get_trust_mem_type(dma_buf);
+
+			trusted_mem_api_query_pa(
+				sec_mem_type, 0, 0, NULL, &sec_handle, NULL, 0, 0, &phy_addr);
+
+			if (phy_addr == 0) {
+				dev_warn(kctx->kbdev->dev,
+					"can't get PA: sec_mem_type=%d, sec_handle=%llx, phy_addr=%llx\n",
+					sec_mem_type,
+					(unsigned long long)sec_handle,
+					(unsigned long long)phy_addr);
+				err = -EINVAL;
+				goto err_unmap_attachment;
+			}
+		} else
+#endif
+		{
+			phy_addr = sg_phys(s);
+		}
 
 		WARN_ONCE(sg_dma_len(s) & (PAGE_SIZE-1),
 		"sg_dma_len(s)=%u is not a multiple of PAGE_SIZE\n",
 		sg_dma_len(s));
 
-		WARN_ONCE(sg_dma_address(s) & (PAGE_SIZE-1),
-		"sg_dma_address(s)=%llx is not aligned to PAGE_SIZE\n",
-		(unsigned long long) sg_dma_address(s));
+		WARN_ONCE(phy_addr & (PAGE_SIZE-1),
+		"sg_phys(s)=%llx is not aligned to PAGE_SIZE\n",
+		(unsigned long long) phy_addr);
 
 		for (j = 0; (j < pages) && (count < reg->nr_pages); j++, count++)
-			*pa++ = as_tagged(sg_dma_address(s) +
+			*pa++ = as_tagged(phy_addr +
 				(j << PAGE_SHIFT));
 		WARN_ONCE(j < pages,
 		"sg list from dma_buf_map_attachment > dma_buf->size=%zu\n",
@@ -1361,6 +1447,9 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx,
 	bool shared_zone = false;
 	bool need_sync = false;
 	int group_id;
+#if IS_ENABLED(CONFIG_MTK_IOMMU_V2)
+	struct ion_handle *ion_handle = NULL;
+#endif
 
 	/* 64-bit address range is the max */
 	if (*va_pages > (U64_MAX / PAGE_SIZE))
@@ -1462,6 +1551,27 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx,
 	reg->gpu_alloc->imported.umm.kctx = kctx;
 	reg->extension = 0;
 
+#if IS_ENABLED(CONFIG_MTK_IOMMU_V2)
+	/* 64-bit address range is the max */
+	if (*va_pages > (U64_MAX / PAGE_SIZE))
+		return NULL;
+
+	if (kctx->kbdev->client == NULL) {
+		dev_warn(kctx->kbdev->dev, "invalid ion client!\n");
+		return NULL;
+	}
+
+	ion_handle = ion_import_dma_buf_fd(kctx->kbdev->client, fd);
+
+	if (IS_ERR(ion_handle)) {
+		dev_warn(kctx->kbdev->dev, "import ion handle failed!\n");
+		return NULL;
+	}
+
+	reg->gpu_alloc->imported.umm.ion_client = kctx->kbdev->client;
+	reg->gpu_alloc->imported.umm.ion_handle = ion_handle;
+#endif
+
 	if (!IS_ENABLED(CONFIG_MALI_DMA_BUF_MAP_ON_DEMAND)) {
 		int err;
 
@@ -1469,6 +1579,10 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx,
 
 		err = kbase_mem_umm_map_attachment(kctx, reg);
 		if (err) {
+#if IS_ENABLED(CONFIG_MTK_IOMMU_V2)
+			ion_free(kctx->kbdev->client, ion_handle);
+			ion_handle = NULL;
+#endif
 			dev_warn(kctx->kbdev->dev,
 				 "Failed to map dma-buf %pK on GPU: %d\n",
 				 dma_buf, err);

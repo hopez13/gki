@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+// SPDX-License-Identifier: GPL-2.0
 /*
  *
  * (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
@@ -161,9 +161,9 @@ void kbase_device_pcm_dev_term(struct kbase_device *const kbdev)
 /**
  * mali_oom_notifier_handler - Mali driver out-of-memory handler
  *
- * @nb: notifier block - used to retrieve kbdev pointer
- * @action: action (unused)
- * @data: data pointer (unused)
+ * @nb - notifier block - used to retrieve kbdev pointer
+ * @action - action (unused)
+ * @data - data pointer (unused)
  * This function simply lists memory usage by the Mali driver, per GPU device,
  * for diagnostic purposes.
  */
@@ -270,14 +270,6 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 
 	err = dma_set_coherent_mask(kbdev->dev,
 			DMA_BIT_MASK(kbdev->gpu_props.mmu.pa_bits));
-	if (err)
-		goto dma_set_mask_failed;
-
-	/* There is no limit for Mali, so set to max. We only do this if dma_parms
-	 * is already allocated by the platform.
-	 */
-	if (kbdev->dev->dma_parms)
-		err = dma_set_max_seg_size(kbdev->dev, UINT_MAX);
 	if (err)
 		goto dma_set_mask_failed;
 
@@ -405,13 +397,22 @@ void kbase_device_vinstr_term(struct kbase_device *kbdev)
 
 int kbase_device_io_history_init(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	return kbase_io_history_init(&kbdev->io_history,
 			KBASEP_DEFAULT_REGISTER_HISTORY_SIZE);
+#else
+	(void)kbdev;
+	return 0;
+#endif
 }
 
 void kbase_device_io_history_term(struct kbase_device *kbdev)
 {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	kbase_io_history_term(&kbdev->io_history);
+#else
+	(void)kbdev;
+#endif
 }
 
 int kbase_device_misc_register(struct kbase_device *kbdev)

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+// SPDX-License-Identifier: GPL-2.0
 /*
  *
  * (C) COPYRIGHT 2016-2018, 2020-2021 ARM Limited. All rights reserved.
@@ -26,7 +26,6 @@
 #include "mali_kbase.h"
 #include <device/mali_kbase_device.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
-#include <backend/gpu/mali_kbase_irq_internal.h>
 
 #include <kutf/kutf_suite.h>
 #include <kutf/kutf_utils.h>
@@ -236,7 +235,7 @@ static void mali_kutf_irq_latency(struct kutf_context *context)
 /**
  * Module entry point for this test.
  */
-static int __init mali_kutf_irq_test_main_init(void)
+int mali_kutf_irq_test_main_init(void)
 {
 	struct kutf_suite *suite;
 
@@ -265,7 +264,7 @@ static int __init mali_kutf_irq_test_main_init(void)
 /**
  * Module exit point for this test.
  */
-static void __exit mali_kutf_irq_test_main_exit(void)
+void mali_kutf_irq_test_main_exit(void)
 {
 	kutf_destroy_application(irq_app);
 }

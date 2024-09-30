@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+// SPDX-License-Identifier: GPL-2.0
 /*
  *
  * (C) COPYRIGHT 2018-2021 ARM Limited. All rights reserved.
@@ -115,6 +115,15 @@ static inline void input_page_write(u32 *const input, const u32 offset,
 	WARN_ON(offset % sizeof(u32));
 
 	input[offset / sizeof(u32)] = value;
+}
+
+static inline void input_page_partial_write(u32 *const input, const u32 offset,
+			u32 value, u32 mask)
+{
+	WARN_ON(offset % sizeof(u32));
+
+	input[offset / sizeof(u32)] =
+		(input_page_read(input, offset) & ~mask) | (value & mask);
 }
 
 static inline u32 output_page_read(const u32 *const output, const u32 offset)

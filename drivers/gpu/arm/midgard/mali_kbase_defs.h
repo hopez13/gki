@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *
  * (C) COPYRIGHT 2011-2021 ARM Limited. All rights reserved.
@@ -111,12 +111,12 @@
 /**
  * Maximum size in bytes of a MMU lock region, as a logarithm
  */
-#define KBASE_LOCK_REGION_MAX_SIZE_LOG2 (48) /*  256 TB */
+#define KBASE_LOCK_REGION_MAX_SIZE_LOG2 (64)
 
 /**
  * Minimum size in bytes of a MMU lock region, as a logarithm
  */
-#define KBASE_LOCK_REGION_MIN_SIZE_LOG2 (15) /* 32 kB */
+#define KBASE_LOCK_REGION_MIN_SIZE_LOG2 (15)
 
 /**
  * Maximum number of GPU memory region zones
@@ -553,6 +553,21 @@ struct kbase_mmu_mode {
 struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
 
 #define DEVNAME_SIZE	16
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_2)
+struct job_status_qos {
+        phys_addr_t phyaddr;
+        size_t size;
+};
+
+struct v1_data {
+        unsigned int version;
+        unsigned int ctx;
+        unsigned int frame;
+        unsigned int job;
+        unsigned int freq;
+};
+#endif
 
 /**
  * enum kbase_devfreq_work_type - The type of work to perform in the devfreq
@@ -1170,6 +1185,14 @@ struct kbase_device {
 	struct priority_control_manager_device *pcm_dev;
 
 	struct notifier_block oom_notifier_block;
+#if IS_ENABLED(CONFIG_MTK_IOMMU_V2)
+	struct ion_client *client;
+#endif
+
+#if defined(CONFIG_MALI_MTK_GPU_BM_2)
+	struct job_status_qos job_status_addr;
+	struct v1_data* v1;
+#endif
 };
 
 /**
