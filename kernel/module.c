@@ -3568,6 +3568,7 @@ static char *module_blacklist;
 static char *custom_module_blacklist[] = {
 
     "zram","zsmalloc",
+    "binder_prio",
     
 };
 
